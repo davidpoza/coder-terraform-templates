@@ -38,8 +38,8 @@ resource "docker_container" "workspace" {
   name  = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
   image = docker_image.workspace.name
 
-  # root simplifica permisos y evita líos de grupos dentro del contenedor
-  user = "0"
+  # KDE no arranca bien como root; usa el usuario del contenedor (UID 1000)
+  user = "1000"
 
   shm_size  = 2048
   entrypoint = ["sh", "-lc"]
