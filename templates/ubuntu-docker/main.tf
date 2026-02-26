@@ -1095,7 +1095,7 @@ module "kasmvnc" {
   version             = "~> 1.2"
   agent_id            = coder_agent.main.id
   desktop_environment = "xfce"
-  subdomain           = true
+  subdomain           = false
 }
 
 module "github-upload-public-key" {
