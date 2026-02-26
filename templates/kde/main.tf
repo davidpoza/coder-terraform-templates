@@ -18,6 +18,24 @@ data "coder_workspace_owner" "me" {}
 resource "coder_agent" "main" {
   os   = "linux"
   arch = "amd64"
+
+  startup_script = <<'EOT'
+    set -eux
+
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update
+
+    # Base gráfica para KasmVNC + XFCE
+    apt-get install -y --no-install-recommends \
+    xfce4 xfce4-terminal dbus-x11 xauth \
+    xorg x11-xserver-utils x11-utils \
+    fonts-dejavu
+
+    # (opcional) utilidades para comprobar aceleración
+    apt-get install -y --no-install-recommends mesa-utils
+
+    rm -rf /var/lib/apt/lists/*
+    EOT
 }
 
 # Escritorio por navegador (KasmVNC). XFCE = más ligero.
