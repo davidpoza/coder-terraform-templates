@@ -20,69 +20,37 @@ resource "coder_agent" "main" {
   arch = "amd64"
 }
 
-# App del escritorio KDE (sin subdominios)
-resource "coder_app" "kde" {
-  agent_id     = coder_agent.main.id
-  slug         = "kde"
-  display_name = "KDE Desktop"
-  icon         = "/icon/desktop.svg"
-  url          = "http://localhost:3000/"
-  share        = "owner"
+# App escritorio Kasm
+module "kasmvnc" {
+  source  = "registry.coder.com/coder/kasmvnc/coder"
+  version = "~> 1.2"
 
-  healthcheck {
-    url       = "http://localhost:3000/"
-    interval  = 10
-    threshold = 30
-  }
+  agent_id            = coder_agent.main.id
+  desktop_environment = "xfce"   # xfce = más rápido
+  subdomain           = false
 }
 
-resource "docker_image" "kde" {
-  name = var.image
+resource "docker_image" "workspace" {
+  name = "ubuntu:24.04"
 }
 
-resource "docker_volume" "config" {
-  name = "coder-${data.coder_workspace.me.id}-kde-config"
-}
+resource "docker_container" "workspace" {
+  name  = "coder-${data.coder_workspace_owner.me.name}-${data.coder_workspace.me.name}"
+  image = docker_image.workspace.name
 
-resource "docker_container" "kde" {
-  name  = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}-kde"
-  image = docker_image.kde.name
+  # Ejecutar como root simplifica permisos GPU
+  user = "0"
 
-  # Recomendado por linuxserver/webtop para buen rendimiento del escritorio
-  shm_size = 1024
+  entrypoint = ["sh", "-c", coder_agent.main.init_script]
 
-  # Persistencia del /config (ajustes del escritorio, etc.)
-  volumes {
-    volume_name    = docker_volume.config.name
-    container_path = "/config"
+  shm_size = 2048
+
+  # GPU AMD / Intel
+  devices {
+    host_path      = "/dev/dri"
+    container_path = "/dev/dri"
+    permissions    = "rwm"
   }
 
-  # Autenticación básica (recomendado si no hay reverse proxy)
-  env = [
-    "TZ=Europe/Madrid",
-    "CUSTOM_USER=${var.auth_user}",
-    "PASSWORD=${var.auth_password}",
-  ]
-
-  # Web UI
-  ports {
-    internal = 3000
-    external = 0
-  }
-
-  # (Opcional) HTTPS interno del contenedor
-  # ports {
-  #   internal = 3001
-  #   external = 0
-  # }
-
-  # GPU AMD/Intel por /dev/dri
-  dynamic "devices" {
-    for_each = var.enable_dri ? ["/dev/dri"] : []
-    content {
-      host_path      = devices.value
-      container_path = devices.value
-      permissions    = "rwm"
-    }
-  }
+  group_add = ["video", "render"]
 }
