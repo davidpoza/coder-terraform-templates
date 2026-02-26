@@ -30,7 +30,7 @@ module "kasmvnc" {
 }
 
 resource "docker_image" "workspace" {
-  name = "codercom/enterprise-desktop"
+  name = "ghcr.io/davidpoza/dps-desktop:latest"
 }
 
 resource "docker_container" "workspace" {
