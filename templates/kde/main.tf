@@ -15,41 +15,61 @@ provider "docker" {}
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
 
+variable "enable_dri" {
+  type        = bool
+  description = "Mapear /dev/dri para aceleración GPU (AMD/Intel)."
+  default     = true
+}
+
 resource "coder_agent" "main" {
   os   = "linux"
   arch = "amd64"
 }
 
-# App escritorio Kasm
+# Escritorio por navegador (KasmVNC). XFCE = más ligero.
 module "kasmvnc" {
   source  = "registry.coder.com/coder/kasmvnc/coder"
   version = "~> 1.2"
 
   agent_id            = coder_agent.main.id
-  desktop_environment = "xfce"   # xfce = más rápido
+  desktop_environment = "xfce"
   subdomain           = false
 }
 
 resource "docker_image" "workspace" {
-  name = "ubuntu:24.04"
+  name = "ghcr.io/coder/coder-base:ubuntu"
 }
 
 resource "docker_container" "workspace" {
-  name  = "coder-${data.coder_workspace_owner.me.name}-${data.coder_workspace.me.name}"
+  name  = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
   image = docker_image.workspace.name
 
-  # Ejecutar como root simplifica permisos GPU
+  # root simplifica permisos y evita líos de grupos dentro del contenedor
   user = "0"
 
-  entrypoint = ["sh", "-c", coder_agent.main.init_script]
+  shm_size  = 2048
+  entrypoint = ["sh", "-lc"]
+  command    = [coder_agent.main.init_script]
 
-  shm_size = 2048
-
-  # GPU AMD / Intel
-  devices {
-    host_path      = "/dev/dri"
-    container_path = "/dev/dri"
-    permissions    = "rwm"
+  dynamic "devices" {
+    for_each = var.enable_dri ? ["/dev/dri"] : []
+    content {
+      host_path      = devices.value
+      container_path = devices.value
+      permissions    = "rwm"
+    }
   }
 
+  labels {
+    label = "coder.owner"
+    value = data.coder_workspace_owner.me.name
+  }
+  labels {
+    label = "coder.workspace_id"
+    value = data.coder_workspace.me.id
+  }
+  labels {
+    label = "coder.workspace_name"
+    value = data.coder_workspace.me.name
+  }
 }
