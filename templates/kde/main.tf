@@ -19,7 +19,7 @@ resource "coder_agent" "main" {
   os   = "linux"
   arch = "amd64"
 
-  startup_script = <<'EOT'
+  startup_script = <<-EOT
     set -eux
 
     export DEBIAN_FRONTEND=noninteractive
