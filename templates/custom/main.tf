@@ -20,70 +20,27 @@ resource "coder_agent" "main" {
   arch = "amd64"
 }
 
-resource "coder_script" "start_kde_in_vnc" {
-  agent_id     = coder_agent.main.id
-  display_name = "Start KDE in KasmVNC"
-  run_on_start = true
-
-  script = <<-EOF
-  set -euxo pipefail
-
-  # Asegura runtime dir (KDE/Qt suele necesitarlo)
-  export XDG_RUNTIME_DIR=/tmp/runtime-root
-  mkdir -p "$XDG_RUNTIME_DIR"
-  chmod 0700 "$XDG_RUNTIME_DIR"
-
-  # Espera a que exista el socket del display :1 (Xvnc)
-  for i in $(seq 1 60); do
-    if [ -S /tmp/.X11-unix/X1 ]; then
-      break
-    fi
-    sleep 1
-  done
-
-  export DISPLAY=:1
-  export XAUTHORITY=/root/.Xauthority
-  touch "$XAUTHORITY"
-
-  # Evita arrancar dos veces
-  if pgrep -x kwin_x11 >/dev/null 2>&1 || pgrep -f startplasma-x11 >/dev/null 2>&1; then
-    echo "KDE already running"
-    exit 0
-  fi
-
-  # Arranca Plasma con sesión DBus y guarda log
-  mkdir -p /root/.vnc
-  if command -v dbus-run-session >/dev/null 2>&1; then
-    nohup dbus-run-session -- /usr/bin/startplasma-x11 >/root/.vnc/plasma.log 2>&1 &
-  else
-    nohup /usr/bin/startplasma-x11 >/root/.vnc/plasma.log 2>&1 &
-  fi
-
-  EOF
-}
-
-# Escritorio por navegador (KasmVNC). XFCE = más ligero.
 module "kasmvnc" {
   source  = "registry.coder.com/coder/kasmvnc/coder"
   version = "~> 1.2"
 
   agent_id            = coder_agent.main.id
-  desktop_environment = "manual"
+  desktop_environment = "xfce"
   subdomain           = false
 
   depends_on = [coder_script.kde_xstartup]
 }
 
 resource "docker_image" "workspace" {
-  name = "ghcr.io/makespacemadrid/coder-mks-desktop-kde:latest"
+  name = "codercom/enterprise-desktop"
 }
 
 resource "docker_container" "workspace" {
   name  = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
   image = docker_image.workspace.name
 
-  # KDE no arranca bien como root; usa el usuario del contenedor (UID 1000)
-  user = "1000"
+  # root simplifica permisos y evita líos de grupos dentro del contenedor
+  user = "0"
 
   shm_size  = 2048
   entrypoint = ["sh", "-lc"]
