@@ -31,7 +31,7 @@ module "kasmvnc" {
 }
 
 resource "docker_image" "workspace" {
-  name = "ghcr.io/coder/coder-base:ubuntu"
+  name = "codercom/example-base:ubuntu"
 }
 
 resource "docker_container" "workspace" {
