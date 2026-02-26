@@ -52,5 +52,4 @@ resource "docker_container" "workspace" {
     permissions    = "rwm"
   }
 
-  group_add = ["video", "render"]
 }
