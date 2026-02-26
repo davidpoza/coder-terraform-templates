@@ -15,12 +15,6 @@ provider "docker" {}
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
 
-variable "enable_dri" {
-  type        = bool
-  description = "Mapear /dev/dri para aceleración GPU (AMD/Intel)."
-  default     = true
-}
-
 resource "coder_agent" "main" {
   os   = "linux"
   arch = "amd64"
