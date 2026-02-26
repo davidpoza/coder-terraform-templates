@@ -27,8 +27,6 @@ module "kasmvnc" {
   agent_id            = coder_agent.main.id
   desktop_environment = "xfce"
   subdomain           = false
-
-  depends_on = [coder_script.kde_xstartup]
 }
 
 resource "docker_image" "workspace" {
