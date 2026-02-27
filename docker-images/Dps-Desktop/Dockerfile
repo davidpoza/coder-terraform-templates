@@ -15,6 +15,16 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
       openssh-client \
       software-properties-common \
       mesa-utils \
+      mesa-utils-extra \
+      libgl1-mesa-dri \
+      libgl1-mesa-glx \
+      libegl1-mesa \
+      libegl-mesa0 \
+      libgbm1 \
+      libdrm2 \
+      mesa-vulkan-drivers \
+      vainfo \
+      vulkan-tools \
       dbus-x11 \
       libdatetime-perl \
       openssl \
@@ -107,7 +117,10 @@ RUN npm install -g @openai/codex @google/gemini-cli @anthropic-ai/claude-code @g
 
 # Permitir uso de Docker al usuario no root, instalar nvm y preparar SSH para GitHub
 RUN groupadd -f docker && \
+    groupadd -f video && \
+    groupadd -f render && \
     usermod -aG docker "$USER" && \
+    usermod -aG video,render "$USER" && \
     mkdir -p "/home/$USER/.nvm" && \
     chown -R "$USER:$USER" "/home/$USER/.nvm" && \
     curl -fsSL "https://raw.githubusercontent.com/nvm-sh/nvm/${NVM_VERSION}/install.sh" -o /tmp/install-nvm.sh && \

@@ -1,7 +1,19 @@
 variable "enable_dri" {
   type        = bool
-  description = "Mapea /dev/dri para aceleración gráfica (AMD/Intel)."
+  description = "Mapea /dev/dri para aceleracion grafica (AMD/Intel)."
   default     = true
+}
+
+variable "enable_amd_kfd" {
+  type        = bool
+  description = "Mapea /dev/kfd para passthrough AMD (ROCm/OpenCL)."
+  default     = true
+}
+
+variable "dri_node" {
+  type        = string
+  description = "Nodo DRI de render a usar en el contenedor (ej. /dev/dri/renderD128)."
+  default     = "/dev/dri/renderD128"
 }
 
 variable "auth_user" {

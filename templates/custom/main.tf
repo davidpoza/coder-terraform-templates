@@ -31,7 +31,6 @@ data "coder_parameter" "github_ssh_private_key" {
   type         = "string"
   default      = ""
   mutable      = true
-  sensitive    = true
 }
 
 locals {
@@ -48,6 +47,34 @@ resource "coder_agent" "main" {
 
   startup_script = <<-EOT
     set -eu
+
+    if [ "${tostring(var.enable_dri)}" = "true" ]; then
+      runtime_uid=$(id -u)
+      runtime_user=$(id -un 2>/dev/null || echo "")
+
+      # Alinear grupos/ACL de todos los nodos DRI presentes (card* y renderD*).
+      for dev in /dev/dri/renderD* /dev/dri/card*; do
+        [ -e "$dev" ] || continue
+
+        dev_gid=$(stat -c '%g' "$dev" 2>/dev/null || echo "")
+        if [ -n "$dev_gid" ]; then
+          dev_group=$(getent group "$dev_gid" | cut -d: -f1)
+          if [ -z "$dev_group" ]; then
+            dev_group="hostgpu_$dev_gid"
+            if ! getent group "$dev_group" >/dev/null; then
+              sudo groupadd -g "$dev_gid" "$dev_group" || true
+            fi
+          fi
+          if [ -n "$runtime_user" ] && getent passwd "$runtime_user" >/dev/null 2>&1; then
+            sudo usermod -aG "$dev_group" "$runtime_user" || true
+          fi
+        fi
+
+        if command -v setfacl >/dev/null 2>&1; then
+          sudo setfacl -m "u:$runtime_uid:rw" "$dev" 2>/dev/null || true
+        fi
+      done
+    fi
 
     mkdir -p "$HOME/.ssh"
     chmod 700 "$HOME/.ssh"
@@ -98,10 +125,16 @@ resource "docker_container" "workspace" {
   env = [
     "CODER_AGENT_TOKEN=${coder_agent.main.token}",
     "TZ=Europe/Madrid",
+    "LIBGL_ALWAYS_SOFTWARE=0",
+    "DRINODE=${var.dri_node}",
+    "DRI_PRIME=1",
   ]
 
   dynamic "devices" {
-    for_each = var.enable_dri ? ["/dev/dri"] : []
+    for_each = var.enable_dri ? compact([
+      "/dev/dri",
+      var.enable_amd_kfd ? "/dev/kfd" : "",
+    ]) : []
     content {
       host_path      = devices.value
       container_path = devices.value
