@@ -17,8 +17,8 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
       mesa-utils \
       mesa-utils-extra \
       libgl1-mesa-dri \
-      libgl1-mesa-glx \
-      libegl1-mesa \
+      libgl1 \
+      libegl1 \
       libegl-mesa0 \
       libgbm1 \
       libdrm2 \
