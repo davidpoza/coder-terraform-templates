@@ -3,6 +3,7 @@ FROM codercom/enterprise-minimal:latest
 USER root
 ARG USER=coder
 ARG NVM_VERSION=v0.40.3
+ARG ECLIPSE_RELEASE=2025-12
 
 # Paquetes base del sistema y escritorio XFCE
 RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
@@ -78,7 +79,7 @@ RUN set -eux; \
       arm64) eclipse_arch="aarch64" ;; \
       *) echo "Arquitectura no soportada para Eclipse: $arch" >&2; exit 1 ;; \
     esac; \
-    eclipse_url="https://download.eclipse.org/technology/epp/downloads/release/latest/R/eclipse-java-latest-R-linux-gtk-${eclipse_arch}.tar.gz"; \
+    eclipse_url="https://www.eclipse.org/downloads/download.php?file=/technology/epp/downloads/release/${ECLIPSE_RELEASE}/R/eclipse-java-${ECLIPSE_RELEASE}-R-linux-gtk-${eclipse_arch}.tar.gz&r=1"; \
     mkdir -p /opt; \
     curl -fsSL "$eclipse_url" -o /tmp/eclipse.tar.gz; \
     tar -tzf /tmp/eclipse.tar.gz > /dev/null; \
