@@ -12,6 +12,8 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
       gnupg \
       git \
       openssh-client \
+      software-properties-common \
+      mesa-utils \
       dbus-x11 \
       libdatetime-perl \
       openssl \
@@ -19,6 +21,9 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
       zsh \
       xfce4 \
       xfce4-goodies
+
+# Habilitar repositorio universe para ampliar disponibilidad de paquetes Ubuntu
+RUN add-apt-repository -y universe
 
 # Preparar keyrings APT
 RUN install -d -m 0755 /etc/apt/keyrings
@@ -50,7 +55,7 @@ RUN curl -fsSL https://packages.adoptium.net/artifactory/api/gpg/key/public | gp
     . /etc/os-release && \
     echo "deb [signed-by=/etc/apt/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb ${VERSION_CODENAME} main" > /etc/apt/sources.list.d/adoptium.list
 
-# Instalar Chrome, VSCode, Node.js, Docker, Java 21 y Eclipse
+# Instalar Chrome, VSCode, Node.js, Docker y Java 21
 RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
     apt-get install -y --no-install-recommends \
       google-chrome-stable \
@@ -61,8 +66,36 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
       containerd.io \
       docker-buildx-plugin \
       docker-compose-plugin \
-      temurin-21-jdk \
-      eclipse
+      temurin-21-jdk
+
+# Instalar Eclipse IDE desde tarball oficial
+RUN set -eux; \
+    arch="$(dpkg --print-architecture)"; \
+    case "$arch" in \
+      amd64) eclipse_arch="x86_64" ;; \
+      arm64) eclipse_arch="aarch64" ;; \
+      *) echo "Arquitectura no soportada para Eclipse: $arch" >&2; exit 1 ;; \
+    esac; \
+    eclipse_url="https://www.eclipse.org/downloads/download.php?file=/technology/epp/downloads/release/latest/R/eclipse-java-latest-R-linux-gtk-${eclipse_arch}.tar.gz&r=1"; \
+    curl -fsSL "$eclipse_url" -o /tmp/eclipse.tar.gz; \
+    tar -xzf /tmp/eclipse.tar.gz -C /opt; \
+    ln -sf /opt/eclipse/eclipse /usr/local/bin/eclipse; \
+    rm -f /tmp/eclipse.tar.gz
+
+# Crear launcher de Eclipse para menú de escritorio (XFCE)
+RUN set -eux; \
+    cat > /usr/share/applications/eclipse.desktop << 'EOF'
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Eclipse IDE
+Comment=Eclipse Integrated Development Environment
+Exec=/opt/eclipse/eclipse
+Icon=/opt/eclipse/icon.xpm
+Terminal=false
+Categories=Development;IDE;Java;
+StartupNotify=true
+EOF
 
 # CLIs globales de IA
 RUN npm install -g @openai/codex @google/gemini-cli @anthropic-ai/claude-code @github/copilot opencode-ai
