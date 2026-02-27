@@ -44,13 +44,13 @@ RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /
     . /etc/os-release && \
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu ${VERSION_CODENAME} stable" > /etc/apt/sources.list.d/docker.list
 
-# Repositorio de Eclipse Temurin (Java 25)
+# Repositorio de Eclipse Temurin (Java 21 LTS)
 RUN curl -fsSL https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor -o /etc/apt/keyrings/adoptium.gpg && \
     chmod a+r /etc/apt/keyrings/adoptium.gpg && \
     . /etc/os-release && \
     echo "deb [signed-by=/etc/apt/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb ${VERSION_CODENAME} main" > /etc/apt/sources.list.d/adoptium.list
 
-# Instalar Chrome, VSCode, Node.js, Docker, Java 25 y Eclipse
+# Instalar Chrome, VSCode, Node.js, Docker, Java 21 y Eclipse
 RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
     apt-get install -y --no-install-recommends \
       google-chrome-stable \
@@ -61,7 +61,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
       containerd.io \
       docker-buildx-plugin \
       docker-compose-plugin \
-      temurin-25-jdk \
+      temurin-21-jdk \
       eclipse
 
 # CLIs globales de IA
