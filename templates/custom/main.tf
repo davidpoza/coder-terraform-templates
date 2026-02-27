@@ -46,7 +46,7 @@ resource "docker_container" "workspace" {
   privileged = true
 
   shm_size   = 2048
-  entrypoint = ["zsh", "-lc"]
+  entrypoint = ["sh", "-lc"]
   command    = [coder_agent.main.init_script]
 
   env = [
