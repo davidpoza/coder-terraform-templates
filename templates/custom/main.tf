@@ -15,6 +15,11 @@ provider "docker" {}
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
 
+locals {
+  host_mount_path = trimspace(var.host_mount_path)
+  host_mount_uid  = trimspace(var.host_mount_uid)
+}
+
 resource "coder_agent" "main" {
   os   = "linux"
   arch = "amd64"
@@ -37,11 +42,11 @@ resource "docker_container" "workspace" {
   name  = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
   image = docker_image.workspace.name
 
-  # root simplifica permisos y evita líos de grupos dentro del contenedor
-  user = "0"
+  user       = local.host_mount_path != "" ? local.host_mount_uid : "coder"
+  privileged = true
 
-  shm_size  = 2048
-  entrypoint = ["sh", "-lc"]
+  shm_size   = 2048
+  entrypoint = ["zsh", "-lc"]
   command    = [coder_agent.main.init_script]
 
   env = [

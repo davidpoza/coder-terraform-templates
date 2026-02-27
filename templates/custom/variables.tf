@@ -20,3 +20,15 @@ variable "image" {
   description = "Imagen del escritorio KDE."
   default     = "lscr.io/linuxserver/webtop:ubuntu-kde"
 }
+
+variable "host_mount_path" {
+  type        = string
+  description = "Ruta de mount en el host para activar usuario por UID."
+  default     = ""
+}
+
+variable "host_mount_uid" {
+  type        = string
+  description = "UID a usar dentro del contenedor cuando hay host mount."
+  default     = "coder"
+}
