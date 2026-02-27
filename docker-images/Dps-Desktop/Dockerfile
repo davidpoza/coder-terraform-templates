@@ -4,6 +4,7 @@ USER root
 ARG USER=coder
 ARG NVM_VERSION=v0.40.3
 ARG ECLIPSE_RELEASE=2025-12
+ARG HOST_RENDER_GID=993
 
 # Paquetes base del sistema y escritorio XFCE
 RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
@@ -119,8 +120,10 @@ RUN npm install -g @openai/codex @google/gemini-cli @anthropic-ai/claude-code @g
 RUN groupadd -f docker && \
     groupadd -f video && \
     groupadd -f render && \
+    if ! getent group "${HOST_RENDER_GID}" >/dev/null; then groupadd -g "${HOST_RENDER_GID}" "hostgpu_${HOST_RENDER_GID}"; fi && \
     usermod -aG docker "$USER" && \
     usermod -aG video,render "$USER" && \
+    usermod -aG "${HOST_RENDER_GID}" "$USER" || true && \
     mkdir -p "/home/$USER/.nvm" && \
     chown -R "$USER:$USER" "/home/$USER/.nvm" && \
     curl -fsSL "https://raw.githubusercontent.com/nvm-sh/nvm/${NVM_VERSION}/install.sh" -o /tmp/install-nvm.sh && \
