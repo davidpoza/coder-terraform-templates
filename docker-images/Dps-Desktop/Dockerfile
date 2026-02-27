@@ -46,14 +46,16 @@ RUN curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg -
 # Repositorio oficial de Docker
 RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg && \
     chmod a+r /etc/apt/keyrings/docker.gpg && \
-    . /etc/os-release && \
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu ${VERSION_CODENAME} stable" > /etc/apt/sources.list.d/docker.list
+    codename="$(lsb_release -cs 2>/dev/null || true)" && \
+    [ -n "$codename" ] || codename="noble" && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu ${codename} stable" > /etc/apt/sources.list.d/docker.list
 
 # Repositorio de Eclipse Temurin (Java 21 LTS)
 RUN curl -fsSL https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor -o /etc/apt/keyrings/adoptium.gpg && \
     chmod a+r /etc/apt/keyrings/adoptium.gpg && \
-    . /etc/os-release && \
-    echo "deb [signed-by=/etc/apt/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb ${VERSION_CODENAME} main" > /etc/apt/sources.list.d/adoptium.list
+    codename="$(lsb_release -cs 2>/dev/null || true)" && \
+    [ -n "$codename" ] || codename="noble" && \
+    echo "deb [signed-by=/etc/apt/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb ${codename} main" > /etc/apt/sources.list.d/adoptium.list
 
 # Instalar Chrome, VSCode, Node.js, Docker y Java 21
 RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
