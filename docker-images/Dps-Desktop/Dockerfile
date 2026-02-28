@@ -84,36 +84,36 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
       docker-compose-plugin \
       temurin-21-jdk
 
-# Instalar Eclipse IDE desde tarball oficial
-RUN set -eux; \
-    arch="$(dpkg --print-architecture)"; \
-    case "$arch" in \
-      amd64) eclipse_arch="x86_64" ;; \
-      arm64) eclipse_arch="aarch64" ;; \
-      *) echo "Arquitectura no soportada para Eclipse: $arch" >&2; exit 1 ;; \
-    esac; \
-    eclipse_url="https://www.eclipse.org/downloads/download.php?file=/technology/epp/downloads/release/${ECLIPSE_RELEASE}/R/eclipse-java-${ECLIPSE_RELEASE}-R-linux-gtk-${eclipse_arch}.tar.gz&r=1"; \
-    mkdir -p /opt; \
-    curl -fsSL "$eclipse_url" -o /tmp/eclipse.tar.gz; \
-    tar -tzf /tmp/eclipse.tar.gz > /dev/null; \
-    tar -xzf /tmp/eclipse.tar.gz -C /opt; \
-    ln -sf /opt/eclipse/eclipse /usr/local/bin/eclipse; \
-    rm -f /tmp/eclipse.tar.gz
+# # Instalar Eclipse IDE desde tarball oficial
+# RUN set -eux; \
+#     arch="$(dpkg --print-architecture)"; \
+#     case "$arch" in \
+#       amd64) eclipse_arch="x86_64" ;; \
+#       arm64) eclipse_arch="aarch64" ;; \
+#       *) echo "Arquitectura no soportada para Eclipse: $arch" >&2; exit 1 ;; \
+#     esac; \
+#     eclipse_url="https://www.eclipse.org/downloads/download.php?file=/technology/epp/downloads/release/${ECLIPSE_RELEASE}/R/eclipse-java-${ECLIPSE_RELEASE}-R-linux-gtk-${eclipse_arch}.tar.gz&r=1"; \
+#     mkdir -p /opt; \
+#     curl -fsSL "$eclipse_url" -o /tmp/eclipse.tar.gz; \
+#     tar -tzf /tmp/eclipse.tar.gz > /dev/null; \
+#     tar -xzf /tmp/eclipse.tar.gz -C /opt; \
+#     ln -sf /opt/eclipse/eclipse /usr/local/bin/eclipse; \
+#     rm -f /tmp/eclipse.tar.gz
 
-# Crear launcher de Eclipse para menú de escritorio (XFCE)
-RUN set -eux; \
-    cat > /usr/share/applications/eclipse.desktop << 'EOF'
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=Eclipse IDE
-Comment=Eclipse Integrated Development Environment
-Exec=/opt/eclipse/eclipse
-Icon=/opt/eclipse/icon.xpm
-Terminal=false
-Categories=Development;IDE;Java;
-StartupNotify=true
-EOF
+# # Crear launcher de Eclipse para menú de escritorio (XFCE)
+# RUN set -eux; \
+#     cat > /usr/share/applications/eclipse.desktop << 'EOF'
+# [Desktop Entry]
+# Version=1.0
+# Type=Application
+# Name=Eclipse IDE
+# Comment=Eclipse Integrated Development Environment
+# Exec=/opt/eclipse/eclipse
+# Icon=/opt/eclipse/icon.xpm
+# Terminal=false
+# Categories=Development;IDE;Java;
+# StartupNotify=true
+# EOF
 
 # CLIs globales de IA
 RUN npm install -g @openai/codex @google/gemini-cli @anthropic-ai/claude-code @github/copilot opencode-ai
@@ -154,4 +154,4 @@ RUN echo 'LANG=en_US.UTF-8' >> /etc/default/locale; \
     echo 'export XDG_SESSION_TYPE=x11' >> /home/$USER/.xsessionrc; \
     usermod -s /usr/bin/zsh $USER
 
-USER coder
+# USER coder
