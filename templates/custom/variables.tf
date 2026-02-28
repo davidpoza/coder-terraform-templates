@@ -16,17 +16,6 @@ variable "dri_node" {
   default     = "/dev/dri/renderD128"
 }
 
-variable "auth_user" {
-  type        = string
-  description = "Usuario Basic Auth para el escritorio web."
-}
-
-variable "auth_password" {
-  type        = string
-  description = "Password Basic Auth para el escritorio web."
-  sensitive   = true
-}
-
 variable "image" {
   type        = string
   description = "Imagen del escritorio KDE."
@@ -42,5 +31,5 @@ variable "host_mount_path" {
 variable "host_mount_uid" {
   type        = string
   description = "UID a usar dentro del contenedor cuando hay host mount."
-  default     = "coder"
+  default     = "root"
 }

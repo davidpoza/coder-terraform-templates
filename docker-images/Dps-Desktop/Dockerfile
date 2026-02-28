@@ -17,6 +17,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
       software-properties-common \
       mesa-utils \
       mesa-utils-extra \
+      libglx-mesa0 \
       libgl1-mesa-dri \
       libgl1 \
       libegl1 \
@@ -24,6 +25,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
       libgbm1 \
       libdrm2 \
       mesa-vulkan-drivers \
+      libvulkan1 \
       vainfo \
       vulkan-tools \
       dbus-x11 \
