@@ -91,9 +91,13 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
       virtualgl
 
 # Compatibilidad con rutas esperadas por Kasm/VirtualGL
-RUN mkdir -p /opt/VirtualGL/bin && \
-    if [ -x /usr/bin/vglrun ]; then ln -sf /usr/bin/vglrun /opt/VirtualGL/bin/vglrun; fi && \
-    if [ -x /opt/VirtualGL/bin/vglrun ]; then ln -sf /opt/VirtualGL/bin/vglrun /usr/local/bin/vglrun; fi
+RUN set -eux; \
+    mkdir -p /opt/VirtualGL/bin /usr/local/bin; \
+    if command -v vglrun >/dev/null 2>&1; then \
+      vgl_bin="$(command -v vglrun)"; \
+      ln -sfn "$vgl_bin" /opt/VirtualGL/bin/vglrun; \
+      ln -sfn "$vgl_bin" /usr/local/bin/vglrun; \
+    fi
 
 # # Instalar Eclipse IDE desde tarball oficial
 # RUN set -eux; \
