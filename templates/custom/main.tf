@@ -36,6 +36,8 @@ data "coder_parameter" "github_ssh_private_key" {
 locals {
   host_mount_path              = trimspace(var.host_mount_path)
   host_mount_uid               = trimspace(var.host_mount_uid)
+  dri_card                     = trimspace(var.dri_card)
+  dri_node                     = trimspace(var.dri_node)
   git_email                    = trimspace(data.coder_parameter.git_email.value)
   github_ssh_private_key       = replace(trimspace(data.coder_parameter.github_ssh_private_key.value), "\\n", "\n")
   github_ssh_private_key_base64 = local.github_ssh_private_key != "" ? base64encode(local.github_ssh_private_key) : ""
@@ -52,6 +54,14 @@ resource "coder_agent" "main" {
       runtime_uid=$(id -u)
       runtime_user=$(id -un 2>/dev/null || echo "")
 
+      if [ ! -e "${local.dri_card}" ] || [ ! -e "${local.dri_node}" ]; then
+        echo "GPU warning: nodos DRI configurados no presentes."
+        echo "  DRI card esperado:  ${local.dri_card}"
+        echo "  DRI node esperado:  ${local.dri_node}"
+        echo "  Nodos disponibles en /dev/dri:"
+        ls -l /dev/dri 2>/dev/null || true
+      fi
+
       # Alinear grupos/ACL de todos los nodos DRI presentes (card* y renderD*).
       for dev in /dev/dri/renderD* /dev/dri/card*; do
         [ -e "$dev" ] || continue
@@ -67,13 +77,37 @@ resource "coder_agent" "main" {
           fi
           if [ -n "$runtime_user" ] && getent passwd "$runtime_user" >/dev/null 2>&1; then
             sudo usermod -aG "$dev_group" "$runtime_user" || true
+            sudo chown "$runtime_user:$runtime_user" "$dev" 2>/dev/null || true
           fi
         fi
 
         if command -v setfacl >/dev/null 2>&1; then
           sudo setfacl -m "u:$runtime_uid:rw" "$dev" 2>/dev/null || true
         fi
+
+        # Fallback para entornos donde setfacl/usermod no aplican en caliente.
+        sudo chmod a+rw "$dev" 2>/dev/null || true
       done
+
+      # Forzar configuracion GPU en KasmVNC (DRI3).
+      mkdir -p "$HOME/.vnc"
+      cat > "$HOME/.vnc/kasmvnc.yaml" <<'KASM_GPU_CFG'
+desktop:
+  gpu:
+    hw3d: true
+    drinode: ${local.dri_node}
+KASM_GPU_CFG
+
+      # En DRI3, el compositor de XFCE suele romper aceleracion y forzar software.
+      mkdir -p "$HOME/.config/xfce4/xfconf/xfce-perchannel-xml"
+      cat > "$HOME/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml" <<'XFWM4_CFG'
+<?xml version="1.0" encoding="UTF-8"?>
+<channel name="xfwm4" version="1.0">
+  <property name="general" type="empty">
+    <property name="use_compositing" type="bool" value="false"/>
+  </property>
+</channel>
+XFWM4_CFG
     fi
 
     mkdir -p "$HOME/.ssh"
@@ -104,7 +138,7 @@ module "kasmvnc" {
 }
 
 resource "docker_image" "workspace" {
-  name = "ghcr.io/davidpoza/dps-desktop:latest"
+  name = var.image
 }
 
 resource "docker_volume" "coder_home" {
@@ -117,6 +151,7 @@ resource "docker_container" "workspace" {
 
   user       = local.host_mount_path != "" ? local.host_mount_uid : "coder"
   privileged = true
+  group_add  = var.enable_dri ? compact(["video", "render", var.dri_render_gid]) : []
 
   shm_size   = 2048
   entrypoint = ["sh", "-lc"]
@@ -125,9 +160,14 @@ resource "docker_container" "workspace" {
   env = [
     "CODER_AGENT_TOKEN=${coder_agent.main.token}",
     "TZ=Europe/Madrid",
+    "HW3D=true",
     "LIBGL_ALWAYS_SOFTWARE=0",
-    "DRINODE=${var.dri_node}",
+    "DRINODE=${local.dri_node}",
     "DRI_PRIME=1",
+    "MESA_LOADER_DRIVER_OVERRIDE=${var.mesa_driver_override}",
+    "GALLIUM_DRIVER=${var.mesa_driver_override}",
+    "LIBVA_DRIVER_NAME=${var.mesa_driver_override}",
+    "VDPAU_DRIVER=${var.mesa_driver_override}",
   ]
 
   dynamic "devices" {

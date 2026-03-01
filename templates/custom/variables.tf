@@ -16,10 +16,28 @@ variable "dri_node" {
   default     = "/dev/dri/renderD128"
 }
 
+variable "dri_card" {
+  type        = string
+  description = "Nodo DRI de tarjeta a usar en el contenedor (ej. /dev/dri/card0)."
+  default     = "/dev/dri/card1"
+}
+
+variable "dri_render_gid" {
+  type        = string
+  description = "GID del nodo renderD del host (ej. 993) para group_add del contenedor."
+  default     = "993"
+}
+
+variable "mesa_driver_override" {
+  type        = string
+  description = "Driver Mesa a forzar (AMD suele ser radeonsi)."
+  default     = "radeonsi"
+}
+
 variable "image" {
   type        = string
-  description = "Imagen del escritorio KDE."
-  default     = "lscr.io/linuxserver/webtop:ubuntu-kde"
+  description = "Imagen del escritorio."
+  default     = "ghcr.io/davidpoza/dps-desktop:latest"
 }
 
 variable "host_mount_path" {
