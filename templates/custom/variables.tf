@@ -28,12 +28,6 @@ variable "dri_render_gid" {
   default     = "993"
 }
 
-variable "mesa_driver_override" {
-  type        = string
-  description = "Driver Mesa a forzar (AMD suele ser radeonsi)."
-  default     = "radeonsi"
-}
-
 variable "image" {
   type        = string
   description = "Imagen del escritorio."

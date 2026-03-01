@@ -89,25 +89,24 @@ resource "coder_agent" "main" {
         sudo chmod a+rw "$dev" 2>/dev/null || true
       done
 
-      # Forzar configuracion GPU en KasmVNC (DRI3).
-      mkdir -p "$HOME/.vnc"
-      cat > "$HOME/.vnc/kasmvnc.yaml" <<'KASM_GPU_CFG'
-desktop:
-  gpu:
-    hw3d: true
-    drinode: ${local.dri_node}
-KASM_GPU_CFG
-
-      # En DRI3, el compositor de XFCE suele romper aceleracion y forzar software.
-      mkdir -p "$HOME/.config/xfce4/xfconf/xfce-perchannel-xml"
-      cat > "$HOME/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml" <<'XFWM4_CFG'
-<?xml version="1.0" encoding="UTF-8"?>
-<channel name="xfwm4" version="1.0">
-  <property name="general" type="empty">
-    <property name="use_compositing" type="bool" value="false"/>
-  </property>
-</channel>
-XFWM4_CFG
+      # Modo VirtualGL: asegurar vglrun disponible en la ruta esperada por Kasm.
+      if [ ! -x /opt/VirtualGL/bin/vglrun ] && [ ! -x /usr/bin/vglrun ]; then
+        if command -v apt-get >/dev/null 2>&1; then
+          sudo apt-get update -y || true
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends virtualgl || true
+        fi
+      fi
+      if [ -x /opt/VirtualGL/bin/vglrun ] && [ ! -x /usr/local/bin/vglrun ]; then
+        sudo ln -sf /opt/VirtualGL/bin/vglrun /usr/local/bin/vglrun || true
+      fi
+      if [ -x /usr/bin/vglrun ]; then
+        sudo mkdir -p /opt/VirtualGL/bin
+        sudo ln -sf /usr/bin/vglrun /opt/VirtualGL/bin/vglrun
+        sudo ln -sf /usr/bin/vglrun /usr/local/bin/vglrun
+      fi
+      if ! command -v vglrun >/dev/null 2>&1; then
+        echo "GPU warning: vglrun no encontrado. Instala virtualgl en la imagen base."
+      fi
     fi
 
     mkdir -p "$HOME/.ssh"
@@ -160,14 +159,9 @@ resource "docker_container" "workspace" {
   env = [
     "CODER_AGENT_TOKEN=${coder_agent.main.token}",
     "TZ=Europe/Madrid",
-    "HW3D=true",
     "LIBGL_ALWAYS_SOFTWARE=0",
-    "DRINODE=${local.dri_node}",
-    "DRI_PRIME=1",
-    "MESA_LOADER_DRIVER_OVERRIDE=${var.mesa_driver_override}",
-    "GALLIUM_DRIVER=${var.mesa_driver_override}",
-    "LIBVA_DRIVER_NAME=${var.mesa_driver_override}",
-    "VDPAU_DRIVER=${var.mesa_driver_override}",
+    "KASM_EGL_CARD=${local.dri_card}",
+    "KASM_RENDERD=${local.dri_node}",
   ]
 
   dynamic "devices" {

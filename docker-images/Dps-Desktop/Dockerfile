@@ -82,7 +82,13 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
       containerd.io \
       docker-buildx-plugin \
       docker-compose-plugin \
-      temurin-21-jdk
+      temurin-21-jdk \
+      virtualgl
+
+# Compatibilidad con rutas esperadas por Kasm/VirtualGL
+RUN mkdir -p /opt/VirtualGL/bin && \
+    if [ -x /usr/bin/vglrun ]; then ln -sf /usr/bin/vglrun /opt/VirtualGL/bin/vglrun; fi && \
+    if [ -x /opt/VirtualGL/bin/vglrun ]; then ln -sf /opt/VirtualGL/bin/vglrun /usr/local/bin/vglrun; fi
 
 # # Instalar Eclipse IDE desde tarball oficial
 # RUN set -eux; \
