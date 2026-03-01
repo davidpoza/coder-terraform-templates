@@ -45,3 +45,21 @@ variable "host_mount_uid" {
   description = "UID a usar dentro del contenedor cuando hay host mount."
   default     = "root"
 }
+
+variable "enable_host_docker" {
+  type        = bool
+  description = "Monta el socket Docker del host para usar docker del host dentro del workspace."
+  default     = true
+}
+
+variable "host_docker_socket_path" {
+  type        = string
+  description = "Ruta del socket Docker del host que se monta dentro del workspace."
+  default     = "/var/run/docker.sock"
+}
+
+variable "host_docker_gid" {
+  type        = string
+  description = "GID del grupo propietario del socket Docker del host (ej. 988)."
+  default     = "988"
+}

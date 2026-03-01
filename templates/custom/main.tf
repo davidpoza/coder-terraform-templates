@@ -36,11 +36,18 @@ data "coder_parameter" "github_ssh_private_key" {
 locals {
   host_mount_path              = trimspace(var.host_mount_path)
   host_mount_uid               = trimspace(var.host_mount_uid)
+  enable_host_docker           = var.enable_host_docker
+  host_docker_socket_path      = trimspace(var.host_docker_socket_path)
+  host_docker_gid              = trimspace(var.host_docker_gid)
   dri_card                     = trimspace(var.dri_card)
   dri_node                     = trimspace(var.dri_node)
   git_email                    = trimspace(data.coder_parameter.git_email.value)
   github_ssh_private_key       = replace(trimspace(data.coder_parameter.github_ssh_private_key.value), "\\n", "\n")
   github_ssh_private_key_base64 = local.github_ssh_private_key != "" ? base64encode(local.github_ssh_private_key) : ""
+  container_groups = compact(concat(
+    var.enable_dri ? ["video", "render", var.dri_render_gid] : [],
+    local.enable_host_docker && local.host_docker_gid != "" ? [local.host_docker_gid] : []
+  ))
 }
 
 resource "coder_agent" "main" {
@@ -155,6 +162,31 @@ CHROME_GPU
     if [ -n "${local.git_email}" ]; then
       git config --global user.email "${local.git_email}"
     fi
+
+    if [ "${tostring(var.enable_host_docker)}" = "true" ]; then
+      socket_path="${var.host_docker_socket_path}"
+      runtime_user="$(id -un 2>/dev/null || echo "")"
+      if [ -S "$socket_path" ]; then
+        docker_gid="$(stat -c '%g' "$socket_path" 2>/dev/null || echo "")"
+        if [ -n "$docker_gid" ] && [ "$docker_gid" != "0" ]; then
+          docker_group="$(getent group "$docker_gid" | cut -d: -f1)"
+          if [ -z "$docker_group" ]; then
+            docker_group="hostdocker_$docker_gid"
+            sudo groupadd -g "$docker_gid" "$docker_group" 2>/dev/null || true
+          fi
+          if [ -n "$runtime_user" ]; then
+            sudo usermod -aG "$docker_group" "$runtime_user" 2>/dev/null || true
+          fi
+        fi
+        # Aplicar ACL al socket para que el usuario actual tenga acceso inmediato
+        # sin esperar a una nueva sesion de login.
+        if [ -n "$runtime_user" ] && command -v setfacl >/dev/null 2>&1; then
+          sudo setfacl -m "u:$runtime_user:rw" "$socket_path" 2>/dev/null || true
+        fi
+      else
+        echo "Docker host warning: no existe socket en $socket_path"
+      fi
+    fi
   EOT
 }
 
@@ -181,20 +213,20 @@ resource "docker_container" "workspace" {
 
   user       = local.host_mount_path != "" ? local.host_mount_uid : "coder"
   privileged = true
-  group_add  = var.enable_dri ? compact(["video", "render", var.dri_render_gid]) : []
+  group_add  = local.container_groups
 
   shm_size   = 2048
   entrypoint = ["sh", "-lc"]
   command    = [coder_agent.main.init_script]
 
-  env = [
+  env = concat([
     "CODER_AGENT_TOKEN=${coder_agent.main.token}",
     "TZ=Europe/Madrid",
     "LIBGL_ALWAYS_SOFTWARE=0",
     "VGL_DISPLAY=${local.dri_card}",
     "KASM_EGL_CARD=${local.dri_card}",
     "KASM_RENDERD=${local.dri_node}",
-  ]
+  ], local.enable_host_docker ? ["DOCKER_HOST=unix:///var/run/docker.sock"] : [])
 
   dynamic "devices" {
     for_each = var.enable_dri ? compact([
@@ -211,6 +243,15 @@ resource "docker_container" "workspace" {
   volumes {
     volume_name    = docker_volume.coder_home.name
     container_path = "/home/coder"
+  }
+
+  dynamic "mounts" {
+    for_each = local.enable_host_docker ? [local.host_docker_socket_path] : []
+    content {
+      target = "/var/run/docker.sock"
+      type   = "bind"
+      source = mounts.value
+    }
   }
 
   labels {
