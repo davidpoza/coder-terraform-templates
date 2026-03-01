@@ -92,6 +92,13 @@ resource "coder_agent" "main" {
       # Modo VirtualGL: asegurar vglrun disponible en la ruta esperada por Kasm.
       if [ ! -x /opt/VirtualGL/bin/vglrun ] && [ ! -x /usr/bin/vglrun ]; then
         if command -v apt-get >/dev/null 2>&1; then
+          candidate="$(apt-cache policy virtualgl 2>/dev/null | awk '/Candidate:/ {print $2}' | head -n1)"
+          if [ -z "$candidate" ] || [ "$candidate" = "(none)" ]; then
+            sudo mkdir -p /etc/apt/keyrings
+            curl -fsSL https://packagecloud.io/dcommander/virtualgl/gpgkey | sudo gpg --dearmor -o /etc/apt/keyrings/virtualgl.gpg || true
+            sudo chmod a+r /etc/apt/keyrings/virtualgl.gpg || true
+            echo "deb [signed-by=/etc/apt/keyrings/virtualgl.gpg] https://packagecloud.io/dcommander/virtualgl/any any main" | sudo tee /etc/apt/sources.list.d/virtualgl.list >/dev/null || true
+          fi
           sudo apt-get update -y || true
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends virtualgl || true
         fi

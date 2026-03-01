@@ -71,6 +71,11 @@ RUN curl -fsSL https://packages.adoptium.net/artifactory/api/gpg/key/public | gp
     [ -n "$codename" ] || codename="noble" && \
     echo "deb [signed-by=/etc/apt/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb ${codename} main" > /etc/apt/sources.list.d/adoptium.list
 
+# Repositorio oficial de VirtualGL (packagecloud)
+RUN curl -fsSL https://packagecloud.io/dcommander/virtualgl/gpgkey | gpg --dearmor -o /etc/apt/keyrings/virtualgl.gpg && \
+    chmod a+r /etc/apt/keyrings/virtualgl.gpg && \
+    echo "deb [signed-by=/etc/apt/keyrings/virtualgl.gpg] https://packagecloud.io/dcommander/virtualgl/any any main" > /etc/apt/sources.list.d/virtualgl.list
+
 # Instalar Chrome, VSCode, Node.js, Docker y Java 21
 RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
     apt-get install -y --no-install-recommends \
