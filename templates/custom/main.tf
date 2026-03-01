@@ -50,6 +50,12 @@ resource "coder_agent" "main" {
   startup_script = <<-EOT
     set -eu
 
+    # Levantar dbus (Chrome/Electron emiten errores si falta).
+    if ! pgrep -x dbus-daemon >/dev/null 2>&1; then
+      sudo mkdir -p /run/dbus
+      sudo dbus-daemon --system --fork || true
+    fi
+
     if [ "${tostring(var.enable_dri)}" = "true" ]; then
       runtime_uid=$(id -u)
       runtime_user=$(id -un 2>/dev/null || echo "")
@@ -114,6 +120,24 @@ resource "coder_agent" "main" {
       if ! command -v vglrun >/dev/null 2>&1; then
         echo "GPU warning: vglrun no encontrado. Instala virtualgl en la imagen base."
       fi
+
+      # Wrapper para arrancar Chrome sobre VirtualGL en modo GLX/X11.
+      mkdir -p "$HOME/.local/bin"
+      cat > "$HOME/.local/bin/chrome-gpu" <<'CHROME_GPU'
+#!/bin/sh
+exec vglrun -d "$${KASM_EGL_CARD:-/dev/dri/card1}" google-chrome \
+  --no-sandbox \
+  --disable-gpu-sandbox \
+  --disable-dev-shm-usage \
+  --enable-features=UseOzonePlatform \
+  --ozone-platform=x11 \
+  --use-gl=angle \
+  --use-angle=default \
+  --ignore-gpu-blocklist \
+  --user-data-dir=/tmp/chrome-gpu-profile \
+  "$@"
+CHROME_GPU
+      chmod +x "$HOME/.local/bin/chrome-gpu"
     fi
 
     mkdir -p "$HOME/.ssh"
