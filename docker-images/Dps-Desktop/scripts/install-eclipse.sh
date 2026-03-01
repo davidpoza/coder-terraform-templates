@@ -19,23 +19,28 @@ case "$arch" in
 esac
 
 base_path="/technology/epp/downloads/release/${ECLIPSE_RELEASE}/R"
-eclipse_url=""
+mkdir -p /opt
+downloaded=0
 for pkg in eclipse-java eclipse-jee eclipse-committers eclipse-SDK; do
   candidate="${pkg}-${ECLIPSE_RELEASE}-R-linux-gtk-${eclipse_arch}.tar.gz"
-  candidate_url="https://archive.eclipse.org${base_path}/${candidate}"
-  if curl -fsIL "$candidate_url" >/dev/null 2>&1; then
-    eclipse_url="$candidate_url"
+  for host in https://download.eclipse.org https://archive.eclipse.org; do
+    candidate_url="${host}${base_path}/${candidate}"
+    echo "Probando Eclipse tarball: ${candidate_url}"
+    if curl -fL "$candidate_url" -o /tmp/eclipse.tar.gz; then
+      downloaded=1
+      break
+    fi
+  done
+  if [[ "$downloaded" -eq 1 ]]; then
     break
   fi
 done
 
-if [[ -z "$eclipse_url" ]]; then
-  echo "No se encontro tarball de Eclipse para release=${ECLIPSE_RELEASE} arch=${eclipse_arch}" >&2
+if [[ "$downloaded" -ne 1 ]]; then
+  echo "No se pudo descargar Eclipse para release=${ECLIPSE_RELEASE} arch=${eclipse_arch}" >&2
   exit 1
 fi
 
-mkdir -p /opt
-curl -fL "$eclipse_url" -o /tmp/eclipse.tar.gz
 tar -tzf /tmp/eclipse.tar.gz >/dev/null
 tar -xzf /tmp/eclipse.tar.gz -C /opt
 test -x /opt/eclipse/eclipse
