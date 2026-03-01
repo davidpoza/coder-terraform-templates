@@ -199,6 +199,15 @@ module "kasmvnc" {
   subdomain           = false
 }
 
+module "code-server" {
+  count    = data.coder_workspace.me.start_count
+  source   = "registry.coder.com/coder/code-server/coder"
+  version  = "~> 1.1"
+  agent_id = coder_agent.main.id
+  folder   = "/home/coder/Projects"
+  order    = 1
+}
+
 resource "docker_image" "workspace" {
   name = var.image
 }
