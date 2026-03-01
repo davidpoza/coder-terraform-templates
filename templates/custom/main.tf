@@ -44,6 +44,8 @@ locals {
   git_email                    = trimspace(data.coder_parameter.git_email.value)
   github_ssh_private_key       = replace(trimspace(data.coder_parameter.github_ssh_private_key.value), "\\n", "\n")
   github_ssh_private_key_base64 = local.github_ssh_private_key != "" ? base64encode(local.github_ssh_private_key) : ""
+  vscode_keybindings_default_json = file("${path.module}/defaults/keybindings.json")
+  vscode_keybindings_default_json_base64 = local.vscode_keybindings_default_json != "" ? base64encode(local.vscode_keybindings_default_json) : ""
   container_groups = compact(concat(
     var.enable_dri ? ["video", "render", var.dri_render_gid] : [],
     local.enable_host_docker && local.host_docker_gid != "" ? [local.host_docker_gid] : []
@@ -165,6 +167,13 @@ CHROME_GPU
 
     if [ -n "${local.git_email}" ]; then
       git config --global user.email "${local.git_email}"
+    fi
+
+    keybindings_target="$HOME/.local/share/code-server/User/keybindings.json"
+    mkdir -p "$(dirname "$keybindings_target")"
+    if [ -n "${local.vscode_keybindings_default_json_base64}" ]; then
+      printf '%s' '${local.vscode_keybindings_default_json_base64}' | base64 -d | tr -d '\r' > "$keybindings_target"
+      chmod 600 "$keybindings_target"
     fi
 
     if [ "${tostring(var.enable_host_docker)}" = "true" ]; then
