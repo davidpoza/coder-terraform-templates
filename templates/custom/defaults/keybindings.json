@@ -97,5 +97,5 @@
     "key": "ctrl+k shift+[Comma]",
     "command": "-extension.selectEitherQuote",
     "when": "editorFocus"
-},
+}
 ]

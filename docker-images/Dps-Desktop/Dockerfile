@@ -88,6 +88,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
       htop \
       jq \
       make \
+      nano \
       ncdu \
       net-tools \
       nmap \

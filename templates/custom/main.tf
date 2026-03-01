@@ -27,7 +27,7 @@ data "coder_parameter" "git_email" {
 data "coder_parameter" "github_ssh_private_key" {
   name         = "github_ssh_private_key"
   display_name = "[GitHub] SSH private key"
-  description  = "Pega la clave privada completa (incluyendo -----BEGIN OPENSSH PRIVATE KEY----- y -----END OPENSSH PRIVATE KEY-----). Tambien acepta saltos de linea escapados (\\n)."
+  description  = "Clave privada SSH en BASE64 (contenido completo de la clave OpenSSH codificado)."
   type         = "string"
   default      = ""
   mutable      = true
@@ -42,8 +42,7 @@ locals {
   dri_card                     = trimspace(var.dri_card)
   dri_node                     = trimspace(var.dri_node)
   git_email                    = trimspace(data.coder_parameter.git_email.value)
-  github_ssh_private_key       = replace(trimspace(data.coder_parameter.github_ssh_private_key.value), "\\n", "\n")
-  github_ssh_private_key_base64 = local.github_ssh_private_key != "" ? base64encode(local.github_ssh_private_key) : ""
+  github_ssh_private_key_base64 = trimspace(data.coder_parameter.github_ssh_private_key.value)
   vscode_keybindings_default_json = file("${path.module}/defaults/keybindings.json")
   vscode_keybindings_default_json_base64 = local.vscode_keybindings_default_json != "" ? base64encode(local.vscode_keybindings_default_json) : ""
   container_groups = compact(concat(
@@ -149,31 +148,59 @@ CHROME_GPU
       chmod +x "$HOME/.local/bin/chrome-gpu"
     fi
 
-    mkdir -p "$HOME/.ssh"
-    chmod 700 "$HOME/.ssh"
+    ssh_home="/home/coder"
+    if ! mkdir -p "$ssh_home" 2>/dev/null; then
+      sudo mkdir -p "$ssh_home" || true
+    fi
+    ssh_dir="$ssh_home/.ssh"
+    if ! mkdir -p "$ssh_dir" 2>/dev/null; then
+      sudo mkdir -p "$ssh_dir" || true
+    fi
+    chmod 700 "$ssh_dir" 2>/dev/null || sudo chmod 700 "$ssh_dir" || true
 
     if [ -n "${local.github_ssh_private_key_base64}" ]; then
-      printf '%s' '${local.github_ssh_private_key_base64}' | base64 -d | tr -d '\r' > "$HOME/.ssh/id_ed25519"
-      chmod 600 "$HOME/.ssh/id_ed25519"
-      if ! grep -q "^-----BEGIN OPENSSH PRIVATE KEY-----$" "$HOME/.ssh/id_ed25519" || \
-         ! grep -q "^-----END OPENSSH PRIVATE KEY-----$" "$HOME/.ssh/id_ed25519"; then
+      tmp_key="/tmp/coder_ssh_key"
+      printf '%s' '${local.github_ssh_private_key_base64}' | base64 -d | tr -d '\r' > "$tmp_key"
+      if ! grep -q "^-----BEGIN OPENSSH PRIVATE KEY-----$" "$tmp_key" || \
+         ! grep -q "^-----END OPENSSH PRIVATE KEY-----$" "$tmp_key"; then
         echo "SSH key warning: la clave no parece estar en formato OPENSSH completo (BEGIN/END)." >&2
       fi
+      install -m 600 "$tmp_key" "$ssh_dir/id_ed25519" || true
+      install -m 600 "$tmp_key" "$ssh_dir/id_rsa" || true
+      rm -f "$tmp_key"
+    else
+      echo "SSH key info: parametro github_ssh_private_key vacio; no se crea id_ed25519"
     fi
 
-    touch "$HOME/.ssh/known_hosts"
-    chmod 600 "$HOME/.ssh/known_hosts"
-    ssh-keygen -F github.com -f "$HOME/.ssh/known_hosts" >/dev/null || ssh-keyscan -H github.com >> "$HOME/.ssh/known_hosts" 2>/dev/null || true
+    touch "$ssh_dir/known_hosts" 2>/dev/null || sudo touch "$ssh_dir/known_hosts" || true
+    chmod 600 "$ssh_dir/known_hosts" 2>/dev/null || sudo chmod 600 "$ssh_dir/known_hosts" || true
+    ssh-keygen -F github.com -f "$ssh_dir/known_hosts" >/dev/null || ssh-keyscan -H github.com >> "$ssh_dir/known_hosts" 2>/dev/null || true
+    if id -u coder >/dev/null 2>&1; then chown -R coder:coder "$ssh_dir" 2>/dev/null || sudo chown -R coder:coder "$ssh_dir" || true; fi
 
     if [ -n "${local.git_email}" ]; then
       git config --global user.email "${local.git_email}"
     fi
 
-    keybindings_target="$HOME/.local/share/code-server/User/keybindings.json"
-    mkdir -p "$(dirname "$keybindings_target")"
+    keybindings_home="/home/coder"
+    if ! mkdir -p "$keybindings_home" 2>/dev/null; then
+      sudo mkdir -p "$keybindings_home" || true
+    fi
+    keybindings_src="/tmp/coder-keybindings.json"
     if [ -n "${local.vscode_keybindings_default_json_base64}" ]; then
-      printf '%s' '${local.vscode_keybindings_default_json_base64}' | base64 -d | tr -d '\r' > "$keybindings_target"
-      chmod 600 "$keybindings_target"
+      printf '%s' '${local.vscode_keybindings_default_json_base64}' | base64 -d | tr -d '\r' > "$keybindings_src"
+      if python3 -m json.tool "$keybindings_src" >/dev/null 2>&1; then
+        keybindings_target="$keybindings_home/.local/share/code-server/User/keybindings.json"
+        keybindings_dir="$(dirname "$keybindings_target")"
+        if ! mkdir -p "$keybindings_dir" 2>/dev/null; then
+          sudo mkdir -p "$keybindings_dir" || true
+        fi
+        cp "$keybindings_src" "$keybindings_target" 2>/dev/null || sudo cp "$keybindings_src" "$keybindings_target" || true
+        chmod 600 "$keybindings_target" 2>/dev/null || sudo chmod 600 "$keybindings_target" || true
+        if id -u coder >/dev/null 2>&1; then chown -R coder:coder "$keybindings_dir" 2>/dev/null || sudo chown -R coder:coder "$keybindings_dir" || true; fi
+      else
+        echo "Keybindings warning: defaults/keybindings.json no es JSON valido; se omite importacion."
+      fi
+      rm -f "$keybindings_src"
     fi
 
     if [ "${tostring(var.enable_host_docker)}" = "true" ]; then
@@ -239,7 +266,42 @@ resource "docker_container" "workspace" {
 
   shm_size   = 2048
   entrypoint = ["sh", "-lc"]
-  command    = [coder_agent.main.init_script]
+  command = [<<-EOT
+    set -u
+
+    mkdir -p /home/coder/.ssh /home/coder/.local/share/code-server/User || true
+    chmod 700 /home/coder/.ssh || true
+
+    if [ -n "${local.github_ssh_private_key_base64}" ]; then
+      if printf '%s' '${local.github_ssh_private_key_base64}' | base64 -d | tr -d '\r' > /home/coder/.ssh/id_ed25519; then
+        cp /home/coder/.ssh/id_ed25519 /home/coder/.ssh/id_rsa || true
+        chmod 600 /home/coder/.ssh/id_ed25519 /home/coder/.ssh/id_rsa || true
+      else
+        echo "SSH key warning: no se pudo decodificar github_ssh_private_key"
+        rm -f /home/coder/.ssh/id_ed25519 /home/coder/.ssh/id_rsa || true
+      fi
+    else
+      echo "SSH key info: github_ssh_private_key vacio; no se crean id_ed25519/id_rsa"
+    fi
+
+    touch /home/coder/.ssh/known_hosts || true
+    chmod 600 /home/coder/.ssh/known_hosts || true
+    ssh-keygen -F github.com -f /home/coder/.ssh/known_hosts >/dev/null || ssh-keyscan -H github.com >> /home/coder/.ssh/known_hosts 2>/dev/null || true
+
+    if [ -n "${local.vscode_keybindings_default_json_base64}" ]; then
+      if printf '%s' '${local.vscode_keybindings_default_json_base64}' | base64 -d | tr -d '\r' > /home/coder/.local/share/code-server/User/keybindings.json; then
+        chmod 600 /home/coder/.local/share/code-server/User/keybindings.json || true
+      else
+        echo "Keybindings warning: no se pudo escribir keybindings.json"
+        rm -f /home/coder/.local/share/code-server/User/keybindings.json || true
+      fi
+    fi
+
+    chown -R coder:coder /home/coder/.ssh /home/coder/.local/share/code-server/User 2>/dev/null || true
+
+    exec ${coder_agent.main.init_script}
+  EOT
+  ]
 
   env = concat([
     "CODER_AGENT_TOKEN=${coder_agent.main.token}",
