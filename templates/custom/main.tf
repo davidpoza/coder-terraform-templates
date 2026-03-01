@@ -167,6 +167,7 @@ resource "docker_container" "workspace" {
     "CODER_AGENT_TOKEN=${coder_agent.main.token}",
     "TZ=Europe/Madrid",
     "LIBGL_ALWAYS_SOFTWARE=0",
+    "VGL_DISPLAY=${local.dri_card}",
     "KASM_EGL_CARD=${local.dri_card}",
     "KASM_RENDERD=${local.dri_node}",
   ]
