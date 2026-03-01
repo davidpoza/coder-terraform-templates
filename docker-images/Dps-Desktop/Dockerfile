@@ -121,35 +121,10 @@ RUN if command -v fastfetch >/dev/null 2>&1 && ! command -v neofetch >/dev/null 
       ln -sfn "$(command -v fastfetch)" /usr/local/bin/neofetch; \
     fi
 
-# Instalar Eclipse IDE desde tarball oficial
-RUN set -eux; \
-    arch="$(dpkg --print-architecture)"; \
-    case "$arch" in \
-      amd64) eclipse_arch="x86_64" ;; \
-      arm64) eclipse_arch="aarch64" ;; \
-      *) echo "Arquitectura no soportada para Eclipse: $arch" >&2; exit 1 ;; \
-    esac; \
-    base_path="/technology/epp/downloads/release/${ECLIPSE_RELEASE}/R"; \
-    mkdir -p /opt; \
-    eclipse_url=""; \
-    for pkg in eclipse-java eclipse-jee eclipse-committers eclipse-SDK; do \
-      candidate="${pkg}-${ECLIPSE_RELEASE}-R-linux-gtk-${eclipse_arch}.tar.gz"; \
-      candidate_url="https://archive.eclipse.org${base_path}/${candidate}"; \
-      if curl -fsIL "$candidate_url" >/dev/null 2>&1; then \
-        eclipse_url="$candidate_url"; \
-        break; \
-      fi; \
-    done; \
-    if [ -z "$eclipse_url" ]; then \
-      echo "No se encontro tarball de Eclipse para release=${ECLIPSE_RELEASE} arch=${eclipse_arch}" >&2; \
-      exit 1; \
-    fi; \
-    curl -fL "$eclipse_url" -o /tmp/eclipse.tar.gz; \
-    tar -tzf /tmp/eclipse.tar.gz > /dev/null; \
-    tar -xzf /tmp/eclipse.tar.gz -C /opt; \
-    test -x /opt/eclipse/eclipse; \
-    ln -sf /opt/eclipse/eclipse /usr/local/bin/eclipse; \
-    rm -f /tmp/eclipse.tar.gz
+# Instalar Eclipse IDE desde tarball oficial (script dedicado)
+COPY scripts/install-eclipse.sh /usr/local/bin/install-eclipse.sh
+RUN chmod +x /usr/local/bin/install-eclipse.sh && \
+    /usr/local/bin/install-eclipse.sh "${ECLIPSE_RELEASE}"
 
 # Crear launcher de Eclipse para menú de escritorio (XFCE)
 RUN set -eux; \
