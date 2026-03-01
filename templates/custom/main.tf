@@ -27,7 +27,7 @@ data "coder_parameter" "git_email" {
 data "coder_parameter" "github_ssh_private_key" {
   name         = "github_ssh_private_key"
   display_name = "[GitHub] SSH private key"
-  description  = "Pega tu clave privada SSH (id_ed25519) para clonar repos por SSH."
+  description  = "Pega la clave privada completa (incluyendo -----BEGIN OPENSSH PRIVATE KEY----- y -----END OPENSSH PRIVATE KEY-----). Tambien acepta saltos de linea escapados (\\n)."
   type         = "string"
   default      = ""
   mutable      = true
@@ -153,6 +153,10 @@ CHROME_GPU
     if [ -n "${local.github_ssh_private_key_base64}" ]; then
       printf '%s' '${local.github_ssh_private_key_base64}' | base64 -d | tr -d '\r' > "$HOME/.ssh/id_ed25519"
       chmod 600 "$HOME/.ssh/id_ed25519"
+      if ! grep -q "^-----BEGIN OPENSSH PRIVATE KEY-----$" "$HOME/.ssh/id_ed25519" || \
+         ! grep -q "^-----END OPENSSH PRIVATE KEY-----$" "$HOME/.ssh/id_ed25519"; then
+        echo "SSH key warning: la clave no parece estar en formato OPENSSH completo (BEGIN/END)." >&2
+      fi
     fi
 
     touch "$HOME/.ssh/known_hosts"

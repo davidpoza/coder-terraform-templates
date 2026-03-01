@@ -79,6 +79,28 @@ RUN curl -fsSL https://packagecloud.io/dcommander/virtualgl/gpgkey | gpg --dearm
 # Instalar Chrome, VSCode, Node.js, Docker y Java 21
 RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
     apt-get install -y --no-install-recommends \
+      apt-transport-https \
+      autojump \
+      build-essential \
+      cmake \
+      extra-cmake-modules \
+      hdparm \
+      htop \
+      jq \
+      make \
+      ncdu \
+      net-tools \
+      nmap \
+      python-is-python3 \
+      python3 \
+      python3-pip \
+      rclone \
+      restic \
+      sshfs \
+      tree \
+      wget \
+      wireguard-tools \
+      neovim \
       google-chrome-stable \
       code \
       nodejs \
@@ -94,36 +116,42 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
 RUN mkdir -p /opt/VirtualGL/bin && \
     if command -v vglrun >/dev/null 2>&1; then ln -sfn "$(command -v vglrun)" /opt/VirtualGL/bin/vglrun || true; fi
 
-# # Instalar Eclipse IDE desde tarball oficial
-# RUN set -eux; \
-#     arch="$(dpkg --print-architecture)"; \
-#     case "$arch" in \
-#       amd64) eclipse_arch="x86_64" ;; \
-#       arm64) eclipse_arch="aarch64" ;; \
-#       *) echo "Arquitectura no soportada para Eclipse: $arch" >&2; exit 1 ;; \
-#     esac; \
-#     eclipse_url="https://www.eclipse.org/downloads/download.php?file=/technology/epp/downloads/release/${ECLIPSE_RELEASE}/R/eclipse-java-${ECLIPSE_RELEASE}-R-linux-gtk-${eclipse_arch}.tar.gz&r=1"; \
-#     mkdir -p /opt; \
-#     curl -fsSL "$eclipse_url" -o /tmp/eclipse.tar.gz; \
-#     tar -tzf /tmp/eclipse.tar.gz > /dev/null; \
-#     tar -xzf /tmp/eclipse.tar.gz -C /opt; \
-#     ln -sf /opt/eclipse/eclipse /usr/local/bin/eclipse; \
-#     rm -f /tmp/eclipse.tar.gz
+# Compatibilidad de comandos: exponer "neofetch" usando fastfetch en Ubuntu 24
+RUN if command -v fastfetch >/dev/null 2>&1 && ! command -v neofetch >/dev/null 2>&1; then \
+      ln -sfn "$(command -v fastfetch)" /usr/local/bin/neofetch; \
+    fi
 
-# # Crear launcher de Eclipse para menú de escritorio (XFCE)
-# RUN set -eux; \
-#     cat > /usr/share/applications/eclipse.desktop << 'EOF'
-# [Desktop Entry]
-# Version=1.0
-# Type=Application
-# Name=Eclipse IDE
-# Comment=Eclipse Integrated Development Environment
-# Exec=/opt/eclipse/eclipse
-# Icon=/opt/eclipse/icon.xpm
-# Terminal=false
-# Categories=Development;IDE;Java;
-# StartupNotify=true
-# EOF
+# Instalar Eclipse IDE desde tarball oficial
+RUN set -eux; \
+    arch="$(dpkg --print-architecture)"; \
+    case "$arch" in \
+      amd64) eclipse_arch="x86_64" ;; \
+      arm64) eclipse_arch="aarch64" ;; \
+      *) echo "Arquitectura no soportada para Eclipse: $arch" >&2; exit 1 ;; \
+    esac; \
+    eclipse_url="https://www.eclipse.org/downloads/download.php?file=/technology/epp/downloads/release/${ECLIPSE_RELEASE}/R/eclipse-java-${ECLIPSE_RELEASE}-R-linux-gtk-${eclipse_arch}.tar.gz&r=1"; \
+    mkdir -p /opt; \
+    curl -fL "$eclipse_url" -o /tmp/eclipse.tar.gz; \
+    tar -tzf /tmp/eclipse.tar.gz > /dev/null; \
+    tar -xzf /tmp/eclipse.tar.gz -C /opt; \
+    test -x /opt/eclipse/eclipse; \
+    ln -sf /opt/eclipse/eclipse /usr/local/bin/eclipse; \
+    rm -f /tmp/eclipse.tar.gz
+
+# Crear launcher de Eclipse para menú de escritorio (XFCE)
+RUN set -eux; \
+    cat > /usr/share/applications/eclipse.desktop << 'EOF'
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Eclipse IDE
+Comment=Eclipse Integrated Development Environment
+Exec=/opt/eclipse/eclipse
+Icon=/opt/eclipse/icon.xpm
+Terminal=false
+Categories=Development;IDE;Java;
+StartupNotify=true
+EOF
 
 # CLIs globales de IA
 RUN npm install -g @openai/codex @google/gemini-cli @anthropic-ai/claude-code @github/copilot opencode-ai
