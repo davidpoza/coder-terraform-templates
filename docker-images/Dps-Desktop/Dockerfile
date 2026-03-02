@@ -5,12 +5,14 @@ ARG USER=coder
 ARG NVM_VERSION=v0.40.3
 ARG ECLIPSE_RELEASE=2025-12
 ARG HOST_RENDER_GID=993
+ARG ANDROID_SDK_VERSION=14742923
 
 # Paquetes base del sistema y escritorio XFCE
 RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
     apt-get install -y --no-install-recommends --no-install-suggests \
       ca-certificates \
       curl \
+      jq \
       gnupg \
       git \
       openssh-client \
@@ -77,7 +79,8 @@ RUN curl -fsSL https://packagecloud.io/dcommander/virtualgl/gpgkey | gpg --dearm
     echo "deb [signed-by=/etc/apt/keyrings/virtualgl.gpg] https://packagecloud.io/dcommander/virtualgl/any any main" > /etc/apt/sources.list.d/virtualgl.list
 
 # Instalar Chrome, VSCode, Node.js, Docker y Java 21
-RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
+RUN dpkg --add-architecture i386 && \
+    DEBIAN_FRONTEND=noninteractive apt-get update && \
     apt-get install -y --no-install-recommends \
       apt-transport-https \
       autojump \
@@ -88,6 +91,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
       htop \
       jq \
       make \
+      maven \
       nano \
       ncdu \
       net-tools \
@@ -99,9 +103,15 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
       restic \
       sshfs \
       tree \
+      unzip \
       wget \
       wireguard-tools \
+      zip \
       neovim \
+      libc6:i386 \
+      libstdc++6:i386 \
+      libgcc-s1:i386 \
+      zlib1g:i386 \
       google-chrome-stable \
       code \
       nodejs \
@@ -112,6 +122,33 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
       docker-compose-plugin \
       temurin-21-jdk \
       virtualgl
+
+# Toolchain Android (SDK command-line tools + paquetes de compilacion)
+ENV ANDROID_HOME=/opt/android-sdk \
+    ANDROID_SDK_ROOT=/opt/android-sdk \
+    ANDROID_USER_HOME=/home/coder/.android \
+    JAVA_HOME=/usr/lib/jvm/temurin-21-jdk-amd64 \
+    PATH=$PATH:/opt/android-sdk/platform-tools:/opt/android-sdk/cmdline-tools/latest/bin:/usr/lib/jvm/temurin-21-jdk-amd64/bin
+
+RUN mkdir -p /opt/android-sdk/cmdline-tools && \
+    curl -fsSL "https://dl.google.com/android/repository/commandlinetools-linux-${ANDROID_SDK_VERSION}_latest.zip" -o /tmp/cmdline-tools.zip && \
+    unzip -q /tmp/cmdline-tools.zip -d /opt/android-sdk/cmdline-tools && \
+    mv /opt/android-sdk/cmdline-tools/cmdline-tools /opt/android-sdk/cmdline-tools/latest && \
+    rm -f /tmp/cmdline-tools.zip && \
+    yes | /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses >/dev/null || true && \
+    /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager --update && \
+    /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager \
+      "platform-tools" \
+      "build-tools;35.0.0" \
+      "build-tools;34.0.0" \
+      "platforms;android-35" \
+      "platforms;android-34" \
+      "cmdline-tools;latest" \
+      "ndk;27.0.12077973" \
+      "cmake;3.22.1" && \
+    install -d -o "$USER" -g "$USER" /home/"$USER"/.android && \
+    touch /home/"$USER"/.android/repositories.cfg && \
+    chown -R "$USER":"$USER" /opt/android-sdk /home/"$USER"/.android
 
 # Compatibilidad con rutas esperadas por Kasm/VirtualGL
 RUN mkdir -p /opt/VirtualGL/bin && \
@@ -143,7 +180,7 @@ StartupNotify=true
 EOF
 
 # CLIs globales de IA
-RUN npm install -g @openai/codex @google/gemini-cli @anthropic-ai/claude-code @github/copilot opencode-ai
+RUN npm install -g @openai/codex @google/gemini-cli @anthropic-ai/claude-code @github/copilot opencode-ai eas-cli
 
 # Permitir uso de Docker al usuario no root, instalar nvm y preparar SSH para GitHub
 RUN groupadd -f docker && \

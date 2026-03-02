@@ -33,6 +33,15 @@ data "coder_parameter" "github_ssh_private_key" {
   mutable      = true
 }
 
+data "coder_parameter" "github_upload_public_key" {
+  name         = "github_upload_public_key"
+  display_name = "[GitHub] Upload public key"
+  description  = "Sube automaticamente una clave SSH publica del workspace a GitHub usando external-auth (id: github)."
+  type         = "bool"
+  default      = false
+  mutable      = true
+}
+
 locals {
   host_mount_path              = trimspace(var.host_mount_path)
   host_mount_uid               = trimspace(var.host_mount_uid)
@@ -45,6 +54,11 @@ locals {
   github_ssh_private_key_base64 = trimspace(data.coder_parameter.github_ssh_private_key.value)
   vscode_keybindings_default_json = file("${path.module}/defaults/keybindings.json")
   vscode_keybindings_default_json_base64 = local.vscode_keybindings_default_json != "" ? base64encode(local.vscode_keybindings_default_json) : ""
+  vscode_extensions_default_text = file("${path.module}/defaults/extensions.txt")
+  vscode_extensions = [
+    for ext in split("\n", replace(local.vscode_extensions_default_text, "\r\n", "\n")) : trimspace(ext)
+    if trimspace(ext) != "" && !startswith(trimspace(ext), "#")
+  ]
   container_groups = compact(concat(
     var.enable_dri ? ["video", "render", var.dri_render_gid] : [],
     local.enable_host_docker && local.host_docker_gid != "" ? [local.host_docker_gid] : []
@@ -245,7 +259,15 @@ module "code-server" {
   version  = "~> 1.1"
   agent_id = coder_agent.main.id
   folder   = "/home/coder/Projects"
+  extensions = local.vscode_extensions
   order    = 1
+}
+
+module "github-upload-public-key" {
+  count    = data.coder_parameter.github_upload_public_key.value ? data.coder_workspace.me.start_count : 0
+  source   = "registry.coder.com/coder/github-upload-public-key/coder"
+  version  = "~> 1.0"
+  agent_id = coder_agent.main.id
 }
 
 resource "docker_image" "workspace" {

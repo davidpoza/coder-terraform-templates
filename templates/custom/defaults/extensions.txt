@@ -1,0 +1,15 @@
+vmware.vscode-boot-dev-pack
+vmware.vscode-spring-boot
+vscjava.vscode-spring-initializr
+vscjava.vscode-java-test
+esbenp.prettier-vscode
+vscjava.vscode-java-dependency
+redhat.vscode-yaml
+vscjava.vscode-maven
+redhat.java
+eamodio.gitlens
+vscjava.vscode-java-debug
+mikestead.dotenv
+mhutchie.git-graph
+vscjava.vscode-gradle
+angular.ng-template
