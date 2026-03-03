@@ -54,6 +54,8 @@ locals {
   github_ssh_private_key_base64 = trimspace(data.coder_parameter.github_ssh_private_key.value)
   vscode_keybindings_default_json = file("${path.module}/defaults/keybindings.json")
   vscode_keybindings_default_json_base64 = local.vscode_keybindings_default_json != "" ? base64encode(local.vscode_keybindings_default_json) : ""
+  zshrc_default_text = file("${path.module}/defaults/zshrc")
+  zshrc_default_text_base64 = local.zshrc_default_text != "" ? base64encode(local.zshrc_default_text) : ""
   vscode_extensions_default_text = file("${path.module}/defaults/extensions.txt")
   vscode_extensions = [
     for ext in split("\n", replace(local.vscode_extensions_default_text, "\r\n", "\n")) : trimspace(ext)
@@ -195,6 +197,29 @@ CHROME_GPU
       git config --global user.email "${local.git_email}"
     fi
 
+    runtime_home="$${HOME:-/home/coder}"
+
+    if [ ! -d "$runtime_home/.oh-my-zsh" ]; then
+      export RUNZSH=no
+      export CHSH=no
+      export KEEP_ZSHRC=yes
+      HOME="$runtime_home" sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" || echo "zsh warning: no se pudo instalar Oh My Zsh"
+    fi
+
+    if [ -n "${local.zshrc_default_text_base64}" ]; then
+      for zhome in "$runtime_home" "/home/coder"; do
+        [ -n "$zhome" ] || continue
+        [ -d "$zhome" ] || continue
+        zshrc_target="$zhome/.zshrc"
+        if printf '%s' '${local.zshrc_default_text_base64}' | base64 -d | tr -d '\r' > "$zshrc_target"; then
+          chmod 600 "$zshrc_target" 2>/dev/null || sudo chmod 600 "$zshrc_target" || true
+          if [ "$zhome" = "/home/coder" ] && id -u coder >/dev/null 2>&1; then chown coder:coder "$zshrc_target" 2>/dev/null || sudo chown coder:coder "$zshrc_target" || true; fi
+        else
+          echo "zsh warning: no se pudo escribir $zshrc_target"
+        fi
+      done
+    fi
+
     keybindings_home="/home/coder"
     if ! mkdir -p "$keybindings_home" 2>/dev/null; then
       sudo mkdir -p "$keybindings_home" || true
@@ -319,7 +344,20 @@ resource "docker_container" "workspace" {
       fi
     fi
 
-    chown -R coder:coder /home/coder/.ssh /home/coder/.local/share/code-server/User 2>/dev/null || true
+    runtime_home="$${HOME:-/home/coder}"
+    if [ -n "${local.zshrc_default_text_base64}" ]; then
+      for zhome in "$runtime_home" /home/coder; do
+        [ -d "$zhome" ] || continue
+        if printf '%s' '${local.zshrc_default_text_base64}' | base64 -d | tr -d '\r' > "$zhome/.zshrc"; then
+          chmod 600 "$zhome/.zshrc" || true
+        else
+          echo "zsh warning: no se pudo escribir $zhome/.zshrc"
+          rm -f "$zhome/.zshrc" || true
+        fi
+      done
+    fi
+
+    chown -R coder:coder /home/coder/.ssh /home/coder/.local/share/code-server/User /home/coder/.zshrc 2>/dev/null || true
 
     exec ${coder_agent.main.init_script}
   EOT

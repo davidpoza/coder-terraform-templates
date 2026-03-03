@@ -1,0 +1,12 @@
+# Path de Oh My Zsh.
+export ZSH="$HOME/.oh-my-zsh"
+
+# Tema por defecto.
+ZSH_THEME="robbyrussell"
+
+# Plugins base.
+plugins=(git)
+
+if [ -f "$ZSH/oh-my-zsh.sh" ]; then
+  source "$ZSH/oh-my-zsh.sh"
+fi
