@@ -24,15 +24,6 @@ data "coder_parameter" "git_email" {
   mutable      = true
 }
 
-data "coder_parameter" "github_ssh_private_key" {
-  name         = "github_ssh_private_key"
-  display_name = "[GitHub] SSH private key"
-  description  = "Clave privada SSH en BASE64 (contenido completo de la clave OpenSSH codificado)."
-  type         = "string"
-  default      = ""
-  mutable      = true
-}
-
 data "coder_parameter" "github_upload_public_key" {
   name         = "github_upload_public_key"
   display_name = "[GitHub] Upload public key"
@@ -51,7 +42,6 @@ locals {
   dri_card                     = trimspace(var.dri_card)
   dri_node                     = trimspace(var.dri_node)
   git_email                    = trimspace(data.coder_parameter.git_email.value)
-  github_ssh_private_key_base64 = trimspace(data.coder_parameter.github_ssh_private_key.value)
   vscode_keybindings_default_json = file("${path.module}/defaults/keybindings.json")
   vscode_keybindings_default_json_base64 = local.vscode_keybindings_default_json != "" ? base64encode(local.vscode_keybindings_default_json) : ""
   zshrc_default_text = file("${path.module}/defaults/zshrc")
@@ -174,20 +164,6 @@ CHROME_GPU
     fi
     chmod 700 "$ssh_dir" 2>/dev/null || sudo chmod 700 "$ssh_dir" || true
 
-    if [ -n "${local.github_ssh_private_key_base64}" ]; then
-      tmp_key="/tmp/coder_ssh_key"
-      printf '%s' '${local.github_ssh_private_key_base64}' | base64 -d | tr -d '\r' > "$tmp_key"
-      if ! grep -q "^-----BEGIN OPENSSH PRIVATE KEY-----$" "$tmp_key" || \
-         ! grep -q "^-----END OPENSSH PRIVATE KEY-----$" "$tmp_key"; then
-        echo "SSH key warning: la clave no parece estar en formato OPENSSH completo (BEGIN/END)." >&2
-      fi
-      install -m 600 "$tmp_key" "$ssh_dir/id_ed25519" || true
-      install -m 600 "$tmp_key" "$ssh_dir/id_rsa" || true
-      rm -f "$tmp_key"
-    else
-      echo "SSH key info: parametro github_ssh_private_key vacio; no se crea id_ed25519"
-    fi
-
     touch "$ssh_dir/known_hosts" 2>/dev/null || sudo touch "$ssh_dir/known_hosts" || true
     chmod 600 "$ssh_dir/known_hosts" 2>/dev/null || sudo chmod 600 "$ssh_dir/known_hosts" || true
     ssh-keygen -F github.com -f "$ssh_dir/known_hosts" >/dev/null || ssh-keyscan -H github.com >> "$ssh_dir/known_hosts" 2>/dev/null || true
@@ -198,12 +174,71 @@ CHROME_GPU
     fi
 
     runtime_home="$${HOME:-/home/coder}"
+    if [ -d "/home/coder" ]; then
+      runtime_home="/home/coder"
+    fi
 
-    if [ ! -d "$runtime_home/.oh-my-zsh" ]; then
-      export RUNZSH=no
-      export CHSH=no
-      export KEEP_ZSHRC=yes
-      HOME="$runtime_home" sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" || echo "zsh warning: no se pudo instalar Oh My Zsh"
+    ensure_oh_my_zsh() {
+      zhome="$1"
+      [ -n "$zhome" ] || return 0
+      [ -d "$zhome" ] || return 0
+      [ -d "$zhome/.oh-my-zsh" ] && return 0
+
+      if ! command -v zsh >/dev/null 2>&1; then
+        echo "zsh warning: zsh no instalado; no se instala Oh My Zsh"
+        return 0
+      fi
+
+      install_pkg() {
+        pkg="$1"
+        if command -v apt-get >/dev/null 2>&1; then
+          sudo apt-get update -y >/dev/null 2>&1 || apt-get update -y >/dev/null 2>&1 || true
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "$pkg" >/dev/null 2>&1 || DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "$pkg" >/dev/null 2>&1 || true
+        fi
+      }
+
+      if ! command -v git >/dev/null 2>&1; then
+        install_pkg git
+      fi
+
+      if ! command -v curl >/dev/null 2>&1; then
+        install_pkg curl
+      fi
+
+      if command -v curl >/dev/null 2>&1; then
+        installer="/tmp/ohmyzsh-install.sh"
+        if curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh -o "$installer"; then
+          chmod +x "$installer" || true
+          RUNZSH=no CHSH=no KEEP_ZSHRC=yes HOME="$zhome" sh "$installer" >/dev/null 2>&1 || true
+          rm -f "$installer" || true
+        fi
+      fi
+
+      if [ ! -d "$zhome/.oh-my-zsh" ] && command -v git >/dev/null 2>&1; then
+        HOME="$zhome" git clone --depth=1 https://github.com/ohmyzsh/ohmyzsh.git "$zhome/.oh-my-zsh" >/dev/null 2>&1 || true
+      fi
+
+      theme_dir="$zhome/.oh-my-zsh/custom/themes/powerlevel10k"
+      if [ -d "$zhome/.oh-my-zsh" ] && [ ! -d "$theme_dir" ] && command -v git >/dev/null 2>&1; then
+        mkdir -p "$zhome/.oh-my-zsh/custom/themes" >/dev/null 2>&1 || true
+        HOME="$zhome" git clone --depth=1 https://github.com/romkatv/powerlevel10k.git "$theme_dir" >/dev/null 2>&1 || true
+      fi
+
+      if [ -d "$zhome/.oh-my-zsh" ] && [ "$zhome" = "/home/coder" ] && id -u coder >/dev/null 2>&1; then
+        chown -R coder:coder "$zhome/.oh-my-zsh" 2>/dev/null || sudo chown -R coder:coder "$zhome/.oh-my-zsh" || true
+      fi
+
+      if [ ! -d "$zhome/.oh-my-zsh" ]; then
+        echo "zsh warning: no se pudo instalar Oh My Zsh en $zhome"
+      fi
+      if [ -d "$zhome/.oh-my-zsh" ] && [ ! -f "$theme_dir/powerlevel10k.zsh-theme" ]; then
+        echo "zsh warning: no se pudo instalar powerlevel10k en $zhome"
+      fi
+    }
+
+    ensure_oh_my_zsh "$runtime_home"
+    if [ "$runtime_home" != "/home/coder" ]; then
+      ensure_oh_my_zsh "/home/coder"
     fi
 
     if [ -n "${local.zshrc_default_text_base64}" ]; then
@@ -319,18 +354,6 @@ resource "docker_container" "workspace" {
     mkdir -p /home/coder/.ssh /home/coder/.local/share/code-server/User || true
     chmod 700 /home/coder/.ssh || true
 
-    if [ -n "${local.github_ssh_private_key_base64}" ]; then
-      if printf '%s' '${local.github_ssh_private_key_base64}' | base64 -d | tr -d '\r' > /home/coder/.ssh/id_ed25519; then
-        cp /home/coder/.ssh/id_ed25519 /home/coder/.ssh/id_rsa || true
-        chmod 600 /home/coder/.ssh/id_ed25519 /home/coder/.ssh/id_rsa || true
-      else
-        echo "SSH key warning: no se pudo decodificar github_ssh_private_key"
-        rm -f /home/coder/.ssh/id_ed25519 /home/coder/.ssh/id_rsa || true
-      fi
-    else
-      echo "SSH key info: github_ssh_private_key vacio; no se crean id_ed25519/id_rsa"
-    fi
-
     touch /home/coder/.ssh/known_hosts || true
     chmod 600 /home/coder/.ssh/known_hosts || true
     ssh-keygen -F github.com -f /home/coder/.ssh/known_hosts >/dev/null || ssh-keyscan -H github.com >> /home/coder/.ssh/known_hosts 2>/dev/null || true
@@ -345,6 +368,73 @@ resource "docker_container" "workspace" {
     fi
 
     runtime_home="$${HOME:-/home/coder}"
+    if [ -d "/home/coder" ]; then
+      runtime_home="/home/coder"
+    fi
+
+    ensure_oh_my_zsh() {
+      zhome="$1"
+      [ -n "$zhome" ] || return 0
+      [ -d "$zhome" ] || return 0
+      [ -d "$zhome/.oh-my-zsh" ] && return 0
+
+      if ! command -v zsh >/dev/null 2>&1; then
+        echo "zsh warning: zsh no instalado; no se instala Oh My Zsh"
+        return 0
+      fi
+
+      install_pkg() {
+        pkg="$1"
+        if command -v apt-get >/dev/null 2>&1; then
+          sudo apt-get update -y >/dev/null 2>&1 || apt-get update -y >/dev/null 2>&1 || true
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "$pkg" >/dev/null 2>&1 || DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "$pkg" >/dev/null 2>&1 || true
+        fi
+      }
+
+      if ! command -v git >/dev/null 2>&1; then
+        install_pkg git
+      fi
+
+      if ! command -v curl >/dev/null 2>&1; then
+        install_pkg curl
+      fi
+
+      if command -v curl >/dev/null 2>&1; then
+        installer="/tmp/ohmyzsh-install.sh"
+        if curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh -o "$installer"; then
+          chmod +x "$installer" || true
+          RUNZSH=no CHSH=no KEEP_ZSHRC=yes HOME="$zhome" sh "$installer" >/dev/null 2>&1 || true
+          rm -f "$installer" || true
+        fi
+      fi
+
+      if [ ! -d "$zhome/.oh-my-zsh" ] && command -v git >/dev/null 2>&1; then
+        HOME="$zhome" git clone --depth=1 https://github.com/ohmyzsh/ohmyzsh.git "$zhome/.oh-my-zsh" >/dev/null 2>&1 || true
+      fi
+
+      theme_dir="$zhome/.oh-my-zsh/custom/themes/powerlevel10k"
+      if [ -d "$zhome/.oh-my-zsh" ] && [ ! -d "$theme_dir" ] && command -v git >/dev/null 2>&1; then
+        mkdir -p "$zhome/.oh-my-zsh/custom/themes" >/dev/null 2>&1 || true
+        HOME="$zhome" git clone --depth=1 https://github.com/romkatv/powerlevel10k.git "$theme_dir" >/dev/null 2>&1 || true
+      fi
+
+      if [ -d "$zhome/.oh-my-zsh" ] && [ "$zhome" = "/home/coder" ]; then
+        chown -R coder:coder "$zhome/.oh-my-zsh" 2>/dev/null || true
+      fi
+
+      if [ ! -d "$zhome/.oh-my-zsh" ]; then
+        echo "zsh warning: no se pudo instalar Oh My Zsh en $zhome"
+      fi
+      if [ -d "$zhome/.oh-my-zsh" ] && [ ! -f "$theme_dir/powerlevel10k.zsh-theme" ]; then
+        echo "zsh warning: no se pudo instalar powerlevel10k en $zhome"
+      fi
+    }
+
+    ensure_oh_my_zsh "$runtime_home"
+    if [ "$runtime_home" != "/home/coder" ]; then
+      ensure_oh_my_zsh "/home/coder"
+    fi
+
     if [ -n "${local.zshrc_default_text_base64}" ]; then
       for zhome in "$runtime_home" /home/coder; do
         [ -d "$zhome" ] || continue

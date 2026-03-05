@@ -2,10 +2,14 @@
 export ZSH="$HOME/.oh-my-zsh"
 
 # Tema por defecto.
-ZSH_THEME="robbyrussell"
+ZSH_THEME="powerlevel10k/powerlevel10k"
 
 # Plugins base.
-plugins=(git)
+plugins=(sudo git docker docker-compose npm nvm autojump copyfile)
+
+if [ ! -f "$ZSH/custom/themes/powerlevel10k/powerlevel10k.zsh-theme" ]; then
+  ZSH_THEME="robbyrussell"
+fi
 
 if [ -f "$ZSH/oh-my-zsh.sh" ]; then
   source "$ZSH/oh-my-zsh.sh"
