@@ -72,13 +72,11 @@ if ! /opt/eclipse/eclipse \
   -nosplash \
   -application org.eclipse.equinox.p2.director \
   -repository "${STS_UPDATE_SITE}" \
-  -acceptLicenses \
   -installIUs "$(join_by_comma "${STS_IUS_WITH_GROUP[@]}")"; then
   echo "Fallo con *.feature.group; reintentando con IDs raw..."
   /opt/eclipse/eclipse \
     -nosplash \
     -application org.eclipse.equinox.p2.director \
     -repository "${STS_UPDATE_SITE}" \
-    -acceptLicenses \
     -installIUs "$(join_by_comma "${STS_IUS_RAW[@]}")"
 fi
