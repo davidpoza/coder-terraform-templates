@@ -48,12 +48,17 @@ ln -sf /opt/eclipse/eclipse /usr/local/bin/eclipse
 rm -f /tmp/eclipse.tar.gz
 
 # Instalar Spring Tools 4 (Spring Boot Tool Suite) como add-on de Eclipse.
-STS_UPDATE_SITE="${STS_UPDATE_SITE:-https://cdn.spring.io/spring-tools/release/update/latest/}"
+STS_UPDATE_SITES=(
+  "${STS_UPDATE_SITE:-https://cdn.spring.io/spring-tools/release/update/latest/}"
+  "https://download.springsource.com/release/TOOLS/sts4/update/latest/"
+)
 STS_PREFERRED_IUS=(
   org.springframework.boot.ide.main.feature.feature.group
   org.springframework.tooling.boot.ls.feature.feature.group
   org.springframework.ide.eclipse.boot.dash.feature.feature.group
   org.springframework.ide.eclipse.xml.namespaces.feature.feature.group
+  org.springsource.ide.eclipse.boot.feature.feature.group
+  org.springsource.ide.eclipse.boot.dash.feature.feature.group
 )
 
 join_by_comma() {
@@ -61,57 +66,67 @@ join_by_comma() {
   echo "$*"
 }
 
-echo "Instalando Spring Tools 4 desde: ${STS_UPDATE_SITE}"
-echo "Consultando IUs disponibles en el update site..."
-set +e
-available_ius_output="$(
-  /opt/eclipse/eclipse \
+echo "Instalando Spring Tools 4 en Eclipse..."
+sts_installed=0
+for repo in "${STS_UPDATE_SITES[@]}"; do
+  echo "Consultando IUs disponibles en: ${repo}"
+  set +e
+  available_ius_output="$(
+    /opt/eclipse/eclipse \
+      -consolelog \
+      -nosplash \
+      -application org.eclipse.equinox.p2.director \
+      -repository "${repo}" \
+      -list 2>&1
+  )"
+  list_rc=$?
+  set -e
+  if [[ "$list_rc" -ne 0 ]]; then
+    echo "No se pudo listar IUs de ${repo} (rc=${list_rc})."
+    continue
+  fi
+
+  install_ius=()
+  for iu in "${STS_PREFERRED_IUS[@]}"; do
+    if printf '%s\n' "${available_ius_output}" | grep -Eq "^[[:space:]]*${iu}/"; then
+      install_ius+=("${iu}")
+    fi
+  done
+
+  # Fallback: descubrir IUs Spring/STS si cambiaron IDs exactos.
+  if [[ "${#install_ius[@]}" -eq 0 ]]; then
+    while IFS= read -r iu; do
+      install_ius+=("${iu}")
+    done < <(
+      printf '%s\n' "${available_ius_output}" \
+        | sed -n 's#^[[:space:]]*\([^[:space:]]*\.feature\.group\)/.*#\1#p' \
+        | grep -Ei '(spring|springsource|sts|boot)' \
+        | sort -u
+    )
+  fi
+
+  if [[ "${#install_ius[@]}" -eq 0 ]]; then
+    echo "Sin IUs STS detectadas en ${repo}, probando siguiente repositorio..."
+    continue
+  fi
+
+  echo "IUs STS seleccionadas desde ${repo}: $(join_by_comma "${install_ius[@]}")"
+  if /opt/eclipse/eclipse \
     -consolelog \
     -nosplash \
     -application org.eclipse.equinox.p2.director \
-    -repository "${STS_UPDATE_SITE}" \
-    -list 2>&1
-)"
-list_rc=$?
-set -e
-if [[ "$list_rc" -ne 0 ]]; then
-  echo "No se pudo listar IUs de STS (rc=${list_rc}). Salida:"
-  echo "${available_ius_output}"
-  exit "$list_rc"
-fi
-
-install_ius=()
-for iu in "${STS_PREFERRED_IUS[@]}"; do
-  if printf '%s\n' "${available_ius_output}" | grep -q "^${iu}/"; then
-    install_ius+=("${iu}")
+    -repository "${repo}" \
+    -destination /opt/eclipse \
+    -bundlepool /opt/eclipse \
+    -profile SDKProfile \
+    -profileProperties org.eclipse.update.install.features=true \
+    -installIUs "$(join_by_comma "${install_ius[@]}")"; then
+    sts_installed=1
+    break
   fi
 done
 
-# Fallback: descubrir IUs Spring si cambiaron IDs exactos en ese release.
-if [[ "${#install_ius[@]}" -eq 0 ]]; then
-  while IFS= read -r iu; do
-    install_ius+=("${iu}")
-  done < <(
-    printf '%s\n' "${available_ius_output}" \
-      | sed -n 's#^\(org\.springframework\..*\.feature\.group\)/.*#\1#p' \
-      | grep -E '(boot|dash|namespaces|tooling\.boot)' \
-      | sort -u
-  )
-fi
-
-if [[ "${#install_ius[@]}" -eq 0 ]]; then
-  echo "No se detectaron IUs instalables de Spring Tools en ${STS_UPDATE_SITE}" >&2
+if [[ "${sts_installed}" -ne 1 ]]; then
+  echo "No se pudo instalar Spring Tools 4 desde ninguno de los repositorios configurados." >&2
   exit 13
 fi
-
-echo "IUs STS seleccionadas: $(join_by_comma "${install_ius[@]}")"
-/opt/eclipse/eclipse \
-  -consolelog \
-  -nosplash \
-  -application org.eclipse.equinox.p2.director \
-  -repository "${STS_UPDATE_SITE}" \
-  -destination /opt/eclipse \
-  -bundlepool /opt/eclipse \
-  -profile SDKProfile \
-  -profileProperties org.eclipse.update.install.features=true \
-  -installIUs "$(join_by_comma "${install_ius[@]}")"
