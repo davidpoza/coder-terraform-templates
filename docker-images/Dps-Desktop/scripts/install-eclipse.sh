@@ -46,3 +46,39 @@ tar -xzf /tmp/eclipse.tar.gz -C /opt
 test -x /opt/eclipse/eclipse
 ln -sf /opt/eclipse/eclipse /usr/local/bin/eclipse
 rm -f /tmp/eclipse.tar.gz
+
+# Instalar Spring Tools 4 (Spring Boot Tool Suite) como add-on de Eclipse.
+STS_UPDATE_SITE="${STS_UPDATE_SITE:-https://cdn.spring.io/spring-tools/release/update/latest/}"
+STS_IUS_WITH_GROUP=(
+  org.springframework.boot.ide.main.feature.feature.group
+  org.springframework.tooling.boot.ls.feature.feature.group
+  org.springframework.ide.eclipse.boot.dash.feature.feature.group
+  org.springframework.ide.eclipse.xml.namespaces.feature.feature.group
+)
+STS_IUS_RAW=(
+  org.springframework.boot.ide.main.feature
+  org.springframework.tooling.boot.ls.feature
+  org.springframework.ide.eclipse.boot.dash.feature
+  org.springframework.ide.eclipse.xml.namespaces.feature
+)
+
+join_by_comma() {
+  local IFS=","
+  echo "$*"
+}
+
+echo "Instalando Spring Tools 4 desde: ${STS_UPDATE_SITE}"
+if ! /opt/eclipse/eclipse \
+  -nosplash \
+  -application org.eclipse.equinox.p2.director \
+  -repository "${STS_UPDATE_SITE}" \
+  -acceptLicenses \
+  -installIUs "$(join_by_comma "${STS_IUS_WITH_GROUP[@]}")"; then
+  echo "Fallo con *.feature.group; reintentando con IDs raw..."
+  /opt/eclipse/eclipse \
+    -nosplash \
+    -application org.eclipse.equinox.p2.director \
+    -repository "${STS_UPDATE_SITE}" \
+    -acceptLicenses \
+    -installIUs "$(join_by_comma "${STS_IUS_RAW[@]}")"
+fi
