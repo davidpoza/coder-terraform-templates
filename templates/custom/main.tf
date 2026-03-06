@@ -12,18 +12,11 @@ terraform {
 provider "coder" {}
 provider "docker" {}
 
+# Contexto del workspace/owner para nombrado y labels.
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
 
-data "coder_parameter" "git_email" {
-  name         = "git_email"
-  display_name = "[Git] Email"
-  description  = "Email para git config --global user.email."
-  type         = "string"
-  default      = ""
-  mutable      = true
-}
-
+# Parámetro opcional: subir la clave SSH pública del workspace a GitHub.
 data "coder_parameter" "github_upload_public_key" {
   name         = "github_upload_public_key"
   display_name = "[GitHub] Upload public key"
@@ -33,6 +26,7 @@ data "coder_parameter" "github_upload_public_key" {
   mutable      = true
 }
 
+# Defaults y valores normalizados usados por agente y contenedor.
 locals {
   host_mount_path              = trimspace(var.host_mount_path)
   host_mount_uid               = trimspace(var.host_mount_uid)
@@ -41,7 +35,6 @@ locals {
   host_docker_gid              = trimspace(var.host_docker_gid)
   dri_card                     = trimspace(var.dri_card)
   dri_node                     = trimspace(var.dri_node)
-  git_email                    = trimspace(data.coder_parameter.git_email.value)
   vscode_keybindings_default_json = file("${path.module}/defaults/keybindings.json")
   vscode_keybindings_default_json_base64 = local.vscode_keybindings_default_json != "" ? base64encode(local.vscode_keybindings_default_json) : ""
   zshrc_default_text = file("${path.module}/defaults/zshrc")
@@ -57,6 +50,7 @@ locals {
   ))
 }
 
+# Bootstrap del workspace: prepara GPU/VirtualGL, SSH, zsh y utilidades base.
 resource "coder_agent" "main" {
   os   = "linux"
   arch = "amd64"
@@ -135,23 +129,6 @@ resource "coder_agent" "main" {
         echo "GPU warning: vglrun no encontrado. Instala virtualgl en la imagen base."
       fi
 
-      # Wrapper para arrancar Chrome sobre VirtualGL en modo GLX/X11.
-      mkdir -p "$HOME/.local/bin"
-      cat > "$HOME/.local/bin/chrome-gpu" <<'CHROME_GPU'
-#!/bin/sh
-exec vglrun -d "$${KASM_EGL_CARD:-/dev/dri/card1}" google-chrome \
-  --no-sandbox \
-  --disable-gpu-sandbox \
-  --disable-dev-shm-usage \
-  --enable-features=UseOzonePlatform \
-  --ozone-platform=x11 \
-  --use-gl=angle \
-  --use-angle=default \
-  --ignore-gpu-blocklist \
-  --user-data-dir=/tmp/chrome-gpu-profile \
-  "$@"
-CHROME_GPU
-      chmod +x "$HOME/.local/bin/chrome-gpu"
     fi
 
     ssh_home="/home/coder"
@@ -168,10 +145,6 @@ CHROME_GPU
     chmod 600 "$ssh_dir/known_hosts" 2>/dev/null || sudo chmod 600 "$ssh_dir/known_hosts" || true
     ssh-keygen -F github.com -f "$ssh_dir/known_hosts" >/dev/null || ssh-keyscan -H github.com >> "$ssh_dir/known_hosts" 2>/dev/null || true
     if id -u coder >/dev/null 2>&1; then chown -R coder:coder "$ssh_dir" 2>/dev/null || sudo chown -R coder:coder "$ssh_dir" || true; fi
-
-    if [ -n "${local.git_email}" ]; then
-      git config --global user.email "${local.git_email}"
-    fi
 
     runtime_home="$${HOME:-/home/coder}"
     if [ -d "/home/coder" ]; then
@@ -304,6 +277,7 @@ CHROME_GPU
   EOT
 }
 
+# Servicios de experiencia de usuario en Coder.
 module "kasmvnc" {
   source  = "registry.coder.com/coder/kasmvnc/coder"
   version = "~> 1.2"
@@ -323,6 +297,15 @@ module "code-server" {
   order    = 1
 }
 
+# Configura identidad Git global (user.name/user.email) a partir de Coder.
+module "git-config" {
+  count    = data.coder_workspace.me.start_count
+  source   = "registry.coder.com/coder/git-config/coder"
+  version  = "~> 1.0"
+  agent_id = coder_agent.main.id
+}
+
+# Integración opcional para publicar clave SSH en GitHub.
 module "github-upload-public-key" {
   count    = data.coder_parameter.github_upload_public_key.value ? data.coder_workspace.me.start_count : 0
   source   = "registry.coder.com/coder/github-upload-public-key/coder"
@@ -330,6 +313,7 @@ module "github-upload-public-key" {
   agent_id = coder_agent.main.id
 }
 
+# Imagen y volumen persistente de HOME del workspace.
 resource "docker_image" "workspace" {
   name = var.image
 }
@@ -348,6 +332,7 @@ resource "docker_container" "workspace" {
 
   shm_size   = 2048
   entrypoint = ["sh", "-lc"]
+  # Reaplica setup sobre /home/coder montado en volumen persistente antes de init_script.
   command = [<<-EOT
     set -u
 
