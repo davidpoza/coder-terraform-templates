@@ -78,6 +78,11 @@ RUN curl -fsSL https://packagecloud.io/dcommander/virtualgl/gpgkey | gpg --dearm
     chmod a+r /etc/apt/keyrings/virtualgl.gpg && \
     echo "deb [signed-by=/etc/apt/keyrings/virtualgl.gpg] https://packagecloud.io/dcommander/virtualgl/any any main" > /etc/apt/sources.list.d/virtualgl.list
 
+# Repositorio oficial de DBeaver CE
+RUN curl -fsSL https://dbeaver.io/debs/dbeaver.gpg.key | gpg --dearmor -o /etc/apt/keyrings/dbeaver.gpg && \
+    chmod a+r /etc/apt/keyrings/dbeaver.gpg && \
+    echo "deb [signed-by=/etc/apt/keyrings/dbeaver.gpg] https://dbeaver.io/debs/dbeaver-ce /" > /etc/apt/sources.list.d/dbeaver.list
+
 # Instalar Chrome, VSCode, Node.js, Docker y Java 21
 RUN dpkg --add-architecture i386 && \
     DEBIAN_FRONTEND=noninteractive apt-get update && \
@@ -121,7 +126,8 @@ RUN dpkg --add-architecture i386 && \
       docker-buildx-plugin \
       docker-compose-plugin \
       temurin-21-jdk \
-      virtualgl
+      virtualgl \
+      dbeaver-ce
 
 # Toolchain Android (SDK command-line tools + paquetes de compilacion)
 ENV ANDROID_HOME=/opt/android-sdk \
