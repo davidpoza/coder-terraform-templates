@@ -59,6 +59,8 @@ STS_PREFERRED_IUS=(
   org.springframework.ide.eclipse.xml.namespaces.feature.feature.group
   org.springsource.ide.eclipse.boot.feature.feature.group
   org.springsource.ide.eclipse.boot.dash.feature.feature.group
+  org.springsource.ide.eclipse.commons.ui.feature.feature.group
+  org.springsource.ide.eclipse.commons.core.feature.feature.group
 )
 
 join_by_comma() {
@@ -67,66 +69,36 @@ join_by_comma() {
 }
 
 echo "Instalando Spring Tools 4 en Eclipse..."
-sts_installed=0
+sts_installed_count=0
 for repo in "${STS_UPDATE_SITES[@]}"; do
-  echo "Consultando IUs disponibles en: ${repo}"
-  set +e
-  available_ius_output="$(
+  echo "Probando instalación STS desde: ${repo}"
+  for iu in "${STS_PREFERRED_IUS[@]}"; do
+    echo "  - Intentando IU: ${iu}"
+    set +e
     /opt/eclipse/eclipse \
       -consolelog \
       -nosplash \
       -application org.eclipse.equinox.p2.director \
       -repository "${repo}" \
-      -list 2>&1
-  )"
-  list_rc=$?
-  set -e
-  if [[ "$list_rc" -ne 0 ]]; then
-    echo "No se pudo listar IUs de ${repo} (rc=${list_rc})."
-    continue
-  fi
-
-  install_ius=()
-  for iu in "${STS_PREFERRED_IUS[@]}"; do
-    if printf '%s\n' "${available_ius_output}" | grep -Eq "^[[:space:]]*${iu}/"; then
-      install_ius+=("${iu}")
+      -destination /opt/eclipse \
+      -bundlepool /opt/eclipse \
+      -profile SDKProfile \
+      -profileProperties org.eclipse.update.install.features=true \
+      -installIUs "${iu}"
+    iu_rc=$?
+    set -e
+    if [[ "${iu_rc}" -eq 0 ]]; then
+      echo "    OK: ${iu}"
+      sts_installed_count=$((sts_installed_count + 1))
+    else
+      echo "    No disponible o incompatible: ${iu}"
     fi
   done
-
-  # Fallback: descubrir IUs Spring/STS si cambiaron IDs exactos.
-  if [[ "${#install_ius[@]}" -eq 0 ]]; then
-    while IFS= read -r iu; do
-      install_ius+=("${iu}")
-    done < <(
-      printf '%s\n' "${available_ius_output}" \
-        | sed -n 's#^[[:space:]]*\([^[:space:]]*\.feature\.group\)/.*#\1#p' \
-        | grep -Ei '(spring|springsource|sts|boot)' \
-        | sort -u
-    )
-  fi
-
-  if [[ "${#install_ius[@]}" -eq 0 ]]; then
-    echo "Sin IUs STS detectadas en ${repo}, probando siguiente repositorio..."
-    continue
-  fi
-
-  echo "IUs STS seleccionadas desde ${repo}: $(join_by_comma "${install_ius[@]}")"
-  if /opt/eclipse/eclipse \
-    -consolelog \
-    -nosplash \
-    -application org.eclipse.equinox.p2.director \
-    -repository "${repo}" \
-    -destination /opt/eclipse \
-    -bundlepool /opt/eclipse \
-    -profile SDKProfile \
-    -profileProperties org.eclipse.update.install.features=true \
-    -installIUs "$(join_by_comma "${install_ius[@]}")"; then
-    sts_installed=1
-    break
-  fi
 done
 
-if [[ "${sts_installed}" -ne 1 ]]; then
+if [[ "${sts_installed_count}" -eq 0 ]]; then
   echo "No se pudo instalar Spring Tools 4 desde ninguno de los repositorios configurados." >&2
   exit 13
 fi
+
+echo "Spring Tools instalado. IUs aplicadas correctamente: ${sts_installed_count}"
