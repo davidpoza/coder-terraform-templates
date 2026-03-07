@@ -186,7 +186,7 @@ StartupNotify=true
 EOF
 
 # CLIs globales de IA
-RUN npm install -g @openai/codex @google/gemini-cli @anthropic-ai/claude-code @github/copilot opencode-ai eas-cli
+RUN npm install -g @openai/codex @google/gemini-cli @anthropic-ai/claude-code @github/copilot opencode-ai eas-cli @angular/cli
 
 # Permitir uso de Docker al usuario no root, instalar nvm y preparar SSH para GitHub
 RUN groupadd -f docker && \

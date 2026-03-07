@@ -37,6 +37,10 @@ locals {
   dri_node                     = trimspace(var.dri_node)
   vscode_keybindings_default_json = file("${path.module}/defaults/keybindings.json")
   vscode_keybindings_default_json_base64 = local.vscode_keybindings_default_json != "" ? base64encode(local.vscode_keybindings_default_json) : ""
+  eclipse_epf_default_text = file("${path.module}/defaults/eclipse.epf")
+  eclipse_epf_default_text_base64 = local.eclipse_epf_default_text != "" ? base64encode(local.eclipse_epf_default_text) : ""
+  p10k_default_text = file("${path.module}/defaults/p10k")
+  p10k_default_text_base64 = local.p10k_default_text != "" ? base64encode(local.p10k_default_text) : ""
   zshrc_default_text = file("${path.module}/defaults/zshrc")
   zshrc_default_text_base64 = local.zshrc_default_text != "" ? base64encode(local.zshrc_default_text) : ""
   vscode_extensions_default_text = file("${path.module}/defaults/extensions.txt")
@@ -228,6 +232,57 @@ resource "coder_agent" "main" {
       done
     fi
 
+    if [ -n "${local.p10k_default_text_base64}" ]; then
+      for zhome in "$runtime_home" "/home/coder"; do
+        [ -n "$zhome" ] || continue
+        [ -d "$zhome" ] || continue
+        p10k_target="$zhome/.p10k.zsh"
+        if printf '%s' '${local.p10k_default_text_base64}' | base64 -d | tr -d '\r' > "$p10k_target"; then
+          chmod 600 "$p10k_target" 2>/dev/null || sudo chmod 600 "$p10k_target" || true
+          if [ "$zhome" = "/home/coder" ] && id -u coder >/dev/null 2>&1; then chown coder:coder "$p10k_target" 2>/dev/null || sudo chown coder:coder "$p10k_target" || true; fi
+        else
+          echo "zsh warning: no se pudo escribir $p10k_target"
+        fi
+      done
+    fi
+
+    install_meslo_fonts() {
+      target_home="$1"
+      [ -n "$target_home" ] || return 0
+      [ -d "$target_home" ] || return 0
+      fonts_dir="$target_home/.fonts"
+      mkdir -p "$fonts_dir" 2>/dev/null || sudo mkdir -p "$fonts_dir" || true
+
+      fetch_font() {
+        url="$1"
+        out="$2"
+        [ -f "$out" ] && return 0
+        if command -v wget >/dev/null 2>&1; then
+          wget -q -O "$out" "$url" 2>/dev/null || sudo wget -q -O "$out" "$url" 2>/dev/null || true
+        elif command -v curl >/dev/null 2>&1; then
+          curl -fsSL "$url" -o "$out" 2>/dev/null || sudo curl -fsSL "$url" -o "$out" 2>/dev/null || true
+        fi
+      }
+
+      fetch_font "https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Regular.ttf" "$fonts_dir/MesloLGS NF Regular.ttf"
+      fetch_font "https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Bold.ttf" "$fonts_dir/MesloLGS NF Bold.ttf"
+      fetch_font "https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Italic.ttf" "$fonts_dir/MesloLGS NF Italic.ttf"
+      fetch_font "https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Bold%20Italic.ttf" "$fonts_dir/MesloLGS NF Bold Italic.ttf"
+
+      if command -v fc-cache >/dev/null 2>&1; then
+        fc-cache -f "$fonts_dir" >/dev/null 2>&1 || sudo fc-cache -f "$fonts_dir" >/dev/null 2>&1 || true
+      fi
+
+      if [ "$target_home" = "/home/coder" ] && id -u coder >/dev/null 2>&1; then
+        chown -R coder:coder "$fonts_dir" 2>/dev/null || sudo chown -R coder:coder "$fonts_dir" || true
+      fi
+    }
+
+    install_meslo_fonts "$runtime_home"
+    if [ "$runtime_home" != "/home/coder" ]; then
+      install_meslo_fonts "/home/coder"
+    fi
+
     keybindings_home="/home/coder"
     if ! mkdir -p "$keybindings_home" 2>/dev/null; then
       sudo mkdir -p "$keybindings_home" || true
@@ -248,6 +303,43 @@ resource "coder_agent" "main" {
         echo "Keybindings warning: defaults/keybindings.json no es JSON valido; se omite importacion."
       fi
       rm -f "$keybindings_src"
+    fi
+
+    if [ -n "${local.eclipse_epf_default_text_base64}" ]; then
+      eclipse_state_dir="/home/coder/.config/coder"
+      eclipse_marker="$eclipse_state_dir/eclipse-epf-imported-v1"
+      eclipse_epf_src="/tmp/coder-eclipse.epf"
+      if [ ! -f "$eclipse_marker" ]; then
+        mkdir -p "$eclipse_state_dir" 2>/dev/null || sudo mkdir -p "$eclipse_state_dir" || true
+        if printf '%s' '${local.eclipse_epf_default_text_base64}' | base64 -d | tr -d '\r' > "$eclipse_epf_src"; then
+          workbench_pref_line="$(grep '^/instance/org\.eclipse\.ui\.workbench/org\.eclipse\.ui\.commands=' "$eclipse_epf_src" | head -n1 || true)"
+          if [ -n "$workbench_pref_line" ]; then
+            workbench_pref_value="$${workbench_pref_line#*=}"
+            eclipse_workspace="/home/coder/Projects"
+            eclipse_prefs_dir="$eclipse_workspace/.metadata/.plugins/org.eclipse.core.runtime/.settings"
+            eclipse_prefs_file="$eclipse_prefs_dir/org.eclipse.ui.workbench.prefs"
+            if ! mkdir -p "$eclipse_prefs_dir" 2>/dev/null; then
+              sudo mkdir -p "$eclipse_prefs_dir" || true
+            fi
+            tmp_prefs="$(mktemp)"
+            if [ -f "$eclipse_prefs_file" ]; then
+              grep -v '^eclipse.preferences.version=' "$eclipse_prefs_file" | grep -v '^org\.eclipse\.ui\.commands=' > "$tmp_prefs" || true
+            fi
+            printf 'eclipse.preferences.version=1\n' >> "$tmp_prefs"
+            printf 'org.eclipse.ui.commands=%s\n' "$workbench_pref_value" >> "$tmp_prefs"
+            cp "$tmp_prefs" "$eclipse_prefs_file" 2>/dev/null || sudo cp "$tmp_prefs" "$eclipse_prefs_file" || true
+            rm -f "$tmp_prefs"
+            if id -u coder >/dev/null 2>&1; then chown -R coder:coder "$eclipse_workspace/.metadata" 2>/dev/null || sudo chown -R coder:coder "$eclipse_workspace/.metadata" || true; fi
+            touch "$eclipse_marker" 2>/dev/null || sudo touch "$eclipse_marker" || true
+            if id -u coder >/dev/null 2>&1; then chown coder:coder "$eclipse_marker" 2>/dev/null || sudo chown coder:coder "$eclipse_marker" || true; fi
+          else
+            echo "Eclipse warning: defaults/eclipse.epf no contiene org.eclipse.ui.commands; se omite importacion."
+          fi
+        else
+          echo "Eclipse warning: no se pudo decodificar defaults/eclipse.epf"
+        fi
+      fi
+      rm -f "$eclipse_epf_src" || true
     fi
 
     if [ "${tostring(var.enable_host_docker)}" = "true" ]; then
@@ -432,7 +524,52 @@ resource "docker_container" "workspace" {
       done
     fi
 
-    chown -R coder:coder /home/coder/.ssh /home/coder/.local/share/code-server/User /home/coder/.zshrc 2>/dev/null || true
+    if [ -n "${local.p10k_default_text_base64}" ]; then
+      for zhome in "$runtime_home" /home/coder; do
+        [ -d "$zhome" ] || continue
+        p10k_target="$zhome/.p10k.zsh"
+        if printf '%s' '${local.p10k_default_text_base64}' | base64 -d | tr -d '\r' > "$p10k_target"; then
+          chmod 600 "$p10k_target" || true
+        else
+          echo "zsh warning: no se pudo escribir $p10k_target"
+          rm -f "$p10k_target" || true
+        fi
+      done
+    fi
+
+    install_meslo_fonts() {
+      target_home="$1"
+      [ -d "$target_home" ] || return 0
+      fonts_dir="$target_home/.fonts"
+      mkdir -p "$fonts_dir" || true
+
+      fetch_font() {
+        url="$1"
+        out="$2"
+        [ -f "$out" ] && return 0
+        if command -v wget >/dev/null 2>&1; then
+          wget -q -O "$out" "$url" 2>/dev/null || true
+        elif command -v curl >/dev/null 2>&1; then
+          curl -fsSL "$url" -o "$out" 2>/dev/null || true
+        fi
+      }
+
+      fetch_font "https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Regular.ttf" "$fonts_dir/MesloLGS NF Regular.ttf"
+      fetch_font "https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Bold.ttf" "$fonts_dir/MesloLGS NF Bold.ttf"
+      fetch_font "https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Italic.ttf" "$fonts_dir/MesloLGS NF Italic.ttf"
+      fetch_font "https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Bold%20Italic.ttf" "$fonts_dir/MesloLGS NF Bold Italic.ttf"
+
+      if command -v fc-cache >/dev/null 2>&1; then
+        fc-cache -f "$fonts_dir" >/dev/null 2>&1 || true
+      fi
+    }
+
+    install_meslo_fonts "$runtime_home"
+    if [ "$runtime_home" != "/home/coder" ]; then
+      install_meslo_fonts "/home/coder"
+    fi
+
+    chown -R coder:coder /home/coder/.ssh /home/coder/.local/share/code-server/User /home/coder/.zshrc /home/coder/.p10k.zsh /home/coder/.fonts 2>/dev/null || true
 
     exec ${coder_agent.main.init_script}
   EOT
