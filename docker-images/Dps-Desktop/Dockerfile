@@ -165,6 +165,14 @@ RUN if command -v fastfetch >/dev/null 2>&1 && ! command -v neofetch >/dev/null 
       ln -sfn "$(command -v fastfetch)" /usr/local/bin/neofetch; \
     fi
 
+# Fuentes Meslo Nerd Font para powerlevel10k
+RUN mkdir -p /usr/local/share/fonts && \
+    curl -fsSL "https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Regular.ttf" -o "/usr/local/share/fonts/MesloLGS NF Regular.ttf" && \
+    curl -fsSL "https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Bold.ttf" -o "/usr/local/share/fonts/MesloLGS NF Bold.ttf" && \
+    curl -fsSL "https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Italic.ttf" -o "/usr/local/share/fonts/MesloLGS NF Italic.ttf" && \
+    curl -fsSL "https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Bold%20Italic.ttf" -o "/usr/local/share/fonts/MesloLGS NF Bold Italic.ttf" && \
+    fc-cache -f /usr/local/share/fonts || true
+
 # Instalar Eclipse IDE desde tarball oficial (script dedicado)
 COPY scripts/install-eclipse.sh /usr/local/bin/install-eclipse.sh
 RUN chmod +x /usr/local/bin/install-eclipse.sh && \

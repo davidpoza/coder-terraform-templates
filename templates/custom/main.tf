@@ -253,21 +253,22 @@ resource "coder_agent" "main" {
       fonts_dir="$target_home/.fonts"
       mkdir -p "$fonts_dir" 2>/dev/null || sudo mkdir -p "$fonts_dir" || true
 
-      fetch_font() {
-        url="$1"
-        out="$2"
-        [ -f "$out" ] && return 0
-        if command -v wget >/dev/null 2>&1; then
-          wget -q -O "$out" "$url" 2>/dev/null || sudo wget -q -O "$out" "$url" 2>/dev/null || true
-        elif command -v curl >/dev/null 2>&1; then
-          curl -fsSL "$url" -o "$out" 2>/dev/null || sudo curl -fsSL "$url" -o "$out" 2>/dev/null || true
+      copy_if_exists() {
+        name="$1"
+        src1="/usr/local/share/fonts/$name"
+        src2="/usr/share/fonts/$name"
+        if [ -f "$src1" ]; then
+          cp -f "$src1" "$fonts_dir/$name" 2>/dev/null || sudo cp -f "$src1" "$fonts_dir/$name" 2>/dev/null || true
+        elif [ -f "$src2" ]; then
+          cp -f "$src2" "$fonts_dir/$name" 2>/dev/null || sudo cp -f "$src2" "$fonts_dir/$name" 2>/dev/null || true
         fi
+        chmod 644 "$fonts_dir/$name" 2>/dev/null || sudo chmod 644 "$fonts_dir/$name" 2>/dev/null || true
       }
 
-      fetch_font "https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Regular.ttf" "$fonts_dir/MesloLGS NF Regular.ttf"
-      fetch_font "https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Bold.ttf" "$fonts_dir/MesloLGS NF Bold.ttf"
-      fetch_font "https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Italic.ttf" "$fonts_dir/MesloLGS NF Italic.ttf"
-      fetch_font "https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Bold%20Italic.ttf" "$fonts_dir/MesloLGS NF Bold Italic.ttf"
+      copy_if_exists "MesloLGS NF Regular.ttf"
+      copy_if_exists "MesloLGS NF Bold.ttf"
+      copy_if_exists "MesloLGS NF Italic.ttf"
+      copy_if_exists "MesloLGS NF Bold Italic.ttf"
 
       if command -v fc-cache >/dev/null 2>&1; then
         fc-cache -f "$fonts_dir" >/dev/null 2>&1 || sudo fc-cache -f "$fonts_dir" >/dev/null 2>&1 || true
@@ -424,153 +425,8 @@ resource "docker_container" "workspace" {
 
   shm_size   = 2048
   entrypoint = ["sh", "-lc"]
-  # Reaplica setup sobre /home/coder montado en volumen persistente antes de init_script.
+  # Mantener command minimo para evitar fallos de arranque del contenedor.
   command = [<<-EOT
-    set -u
-
-    mkdir -p /home/coder/.ssh /home/coder/.local/share/code-server/User || true
-    chmod 700 /home/coder/.ssh || true
-
-    touch /home/coder/.ssh/known_hosts || true
-    chmod 600 /home/coder/.ssh/known_hosts || true
-    ssh-keygen -F github.com -f /home/coder/.ssh/known_hosts >/dev/null || ssh-keyscan -H github.com >> /home/coder/.ssh/known_hosts 2>/dev/null || true
-
-    if [ -n "${local.vscode_keybindings_default_json_base64}" ]; then
-      if printf '%s' '${local.vscode_keybindings_default_json_base64}' | base64 -d | tr -d '\r' > /home/coder/.local/share/code-server/User/keybindings.json; then
-        chmod 600 /home/coder/.local/share/code-server/User/keybindings.json || true
-      else
-        echo "Keybindings warning: no se pudo escribir keybindings.json"
-        rm -f /home/coder/.local/share/code-server/User/keybindings.json || true
-      fi
-    fi
-
-    runtime_home="$${HOME:-/home/coder}"
-    if [ -d "/home/coder" ]; then
-      runtime_home="/home/coder"
-    fi
-
-    ensure_oh_my_zsh() {
-      zhome="$1"
-      [ -n "$zhome" ] || return 0
-      [ -d "$zhome" ] || return 0
-      [ -d "$zhome/.oh-my-zsh" ] && return 0
-
-      if ! command -v zsh >/dev/null 2>&1; then
-        echo "zsh warning: zsh no instalado; no se instala Oh My Zsh"
-        return 0
-      fi
-
-      install_pkg() {
-        pkg="$1"
-        if command -v apt-get >/dev/null 2>&1; then
-          sudo apt-get update -y >/dev/null 2>&1 || apt-get update -y >/dev/null 2>&1 || true
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "$pkg" >/dev/null 2>&1 || DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "$pkg" >/dev/null 2>&1 || true
-        fi
-      }
-
-      if ! command -v git >/dev/null 2>&1; then
-        install_pkg git
-      fi
-
-      if ! command -v curl >/dev/null 2>&1; then
-        install_pkg curl
-      fi
-
-      if command -v curl >/dev/null 2>&1; then
-        installer="/tmp/ohmyzsh-install.sh"
-        if curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh -o "$installer"; then
-          chmod +x "$installer" || true
-          RUNZSH=no CHSH=no KEEP_ZSHRC=yes HOME="$zhome" sh "$installer" >/dev/null 2>&1 || true
-          rm -f "$installer" || true
-        fi
-      fi
-
-      if [ ! -d "$zhome/.oh-my-zsh" ] && command -v git >/dev/null 2>&1; then
-        HOME="$zhome" git clone --depth=1 https://github.com/ohmyzsh/ohmyzsh.git "$zhome/.oh-my-zsh" >/dev/null 2>&1 || true
-      fi
-
-      theme_dir="$zhome/.oh-my-zsh/custom/themes/powerlevel10k"
-      if [ -d "$zhome/.oh-my-zsh" ] && [ ! -d "$theme_dir" ] && command -v git >/dev/null 2>&1; then
-        mkdir -p "$zhome/.oh-my-zsh/custom/themes" >/dev/null 2>&1 || true
-        HOME="$zhome" git clone --depth=1 https://github.com/romkatv/powerlevel10k.git "$theme_dir" >/dev/null 2>&1 || true
-      fi
-
-      if [ -d "$zhome/.oh-my-zsh" ] && [ "$zhome" = "/home/coder" ]; then
-        chown -R coder:coder "$zhome/.oh-my-zsh" 2>/dev/null || true
-      fi
-
-      if [ ! -d "$zhome/.oh-my-zsh" ]; then
-        echo "zsh warning: no se pudo instalar Oh My Zsh en $zhome"
-      fi
-      if [ -d "$zhome/.oh-my-zsh" ] && [ ! -f "$theme_dir/powerlevel10k.zsh-theme" ]; then
-        echo "zsh warning: no se pudo instalar powerlevel10k en $zhome"
-      fi
-    }
-
-    ensure_oh_my_zsh "$runtime_home"
-    if [ "$runtime_home" != "/home/coder" ]; then
-      ensure_oh_my_zsh "/home/coder"
-    fi
-
-    if [ -n "${local.zshrc_default_text_base64}" ]; then
-      for zhome in "$runtime_home" /home/coder; do
-        [ -d "$zhome" ] || continue
-        if printf '%s' '${local.zshrc_default_text_base64}' | base64 -d | tr -d '\r' > "$zhome/.zshrc"; then
-          chmod 600 "$zhome/.zshrc" || true
-        else
-          echo "zsh warning: no se pudo escribir $zhome/.zshrc"
-          rm -f "$zhome/.zshrc" || true
-        fi
-      done
-    fi
-
-    if [ -n "${local.p10k_default_text_base64}" ]; then
-      for zhome in "$runtime_home" /home/coder; do
-        [ -d "$zhome" ] || continue
-        p10k_target="$zhome/.p10k.zsh"
-        if printf '%s' '${local.p10k_default_text_base64}' | base64 -d | tr -d '\r' > "$p10k_target"; then
-          chmod 600 "$p10k_target" || true
-        else
-          echo "zsh warning: no se pudo escribir $p10k_target"
-          rm -f "$p10k_target" || true
-        fi
-      done
-    fi
-
-    install_meslo_fonts() {
-      target_home="$1"
-      [ -d "$target_home" ] || return 0
-      fonts_dir="$target_home/.fonts"
-      mkdir -p "$fonts_dir" || true
-
-      fetch_font() {
-        url="$1"
-        out="$2"
-        [ -f "$out" ] && return 0
-        if command -v wget >/dev/null 2>&1; then
-          wget -q -O "$out" "$url" 2>/dev/null || true
-        elif command -v curl >/dev/null 2>&1; then
-          curl -fsSL "$url" -o "$out" 2>/dev/null || true
-        fi
-      }
-
-      fetch_font "https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Regular.ttf" "$fonts_dir/MesloLGS NF Regular.ttf"
-      fetch_font "https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Bold.ttf" "$fonts_dir/MesloLGS NF Bold.ttf"
-      fetch_font "https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Italic.ttf" "$fonts_dir/MesloLGS NF Italic.ttf"
-      fetch_font "https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Bold%20Italic.ttf" "$fonts_dir/MesloLGS NF Bold Italic.ttf"
-
-      if command -v fc-cache >/dev/null 2>&1; then
-        fc-cache -f "$fonts_dir" >/dev/null 2>&1 || true
-      fi
-    }
-
-    install_meslo_fonts "$runtime_home"
-    if [ "$runtime_home" != "/home/coder" ]; then
-      install_meslo_fonts "/home/coder"
-    fi
-
-    chown -R coder:coder /home/coder/.ssh /home/coder/.local/share/code-server/User /home/coder/.zshrc /home/coder/.p10k.zsh /home/coder/.fonts 2>/dev/null || true
-
     exec ${coder_agent.main.init_script}
   EOT
   ]
