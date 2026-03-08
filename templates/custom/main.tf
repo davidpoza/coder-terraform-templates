@@ -354,6 +354,7 @@ module "filebrowser" {
   version  = "~> 1.1"
   agent_id = coder_agent.main.id
   folder   = "/home/coder"
+  subdomain           = false
 }
 
 # Configura identidad Git global (user.name/user.email) a partir de Coder.
