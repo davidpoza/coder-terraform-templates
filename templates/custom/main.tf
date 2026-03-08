@@ -345,6 +345,7 @@ module "code-server" {
   agent_id = coder_agent.main.id
   folder   = "/home/coder/Projects"
   extensions = local.vscode_extensions
+  subdomain = false
   order    = 1
 }
 
