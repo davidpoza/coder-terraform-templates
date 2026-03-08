@@ -40,9 +40,7 @@ locals {
   eclipse_epf_default_text = file("${path.module}/defaults/eclipse.epf")
   eclipse_epf_default_text_base64 = local.eclipse_epf_default_text != "" ? base64encode(local.eclipse_epf_default_text) : ""
   p10k_default_text = file("${path.module}/defaults/p10k")
-  p10k_default_text_base64 = local.p10k_default_text != "" ? base64encode(local.p10k_default_text) : ""
   zshrc_default_text = file("${path.module}/defaults/zshrc")
-  zshrc_default_text_base64 = local.zshrc_default_text != "" ? base64encode(local.zshrc_default_text) : ""
   vscode_extensions_default_text = file("${path.module}/defaults/extensions.txt")
   vscode_extensions = [
     for ext in split("\n", replace(local.vscode_extensions_default_text, "\r\n", "\n")) : trimspace(ext)
@@ -60,7 +58,7 @@ resource "coder_agent" "main" {
   arch = "amd64"
 
   startup_script = <<-EOT
-    set -eu
+    set -u
 
     # Levantar dbus (Chrome/Electron emiten errores si falta).
     if ! pgrep -x dbus-daemon >/dev/null 2>&1; then
@@ -218,72 +216,6 @@ resource "coder_agent" "main" {
       ensure_oh_my_zsh "/home/coder"
     fi
 
-    if [ -n "${local.zshrc_default_text_base64}" ]; then
-      for zhome in "$runtime_home" "/home/coder"; do
-        [ -n "$zhome" ] || continue
-        [ -d "$zhome" ] || continue
-        zshrc_target="$zhome/.zshrc"
-        if printf '%s' '${local.zshrc_default_text_base64}' | base64 -d | tr -d '\r' > "$zshrc_target"; then
-          chmod 600 "$zshrc_target" 2>/dev/null || sudo chmod 600 "$zshrc_target" || true
-          if [ "$zhome" = "/home/coder" ] && id -u coder >/dev/null 2>&1; then chown coder:coder "$zshrc_target" 2>/dev/null || sudo chown coder:coder "$zshrc_target" || true; fi
-        else
-          echo "zsh warning: no se pudo escribir $zshrc_target"
-        fi
-      done
-    fi
-
-    if [ -n "${local.p10k_default_text_base64}" ]; then
-      for zhome in "$runtime_home" "/home/coder"; do
-        [ -n "$zhome" ] || continue
-        [ -d "$zhome" ] || continue
-        p10k_target="$zhome/.p10k.zsh"
-        if printf '%s' '${local.p10k_default_text_base64}' | base64 -d | tr -d '\r' > "$p10k_target"; then
-          chmod 600 "$p10k_target" 2>/dev/null || sudo chmod 600 "$p10k_target" || true
-          if [ "$zhome" = "/home/coder" ] && id -u coder >/dev/null 2>&1; then chown coder:coder "$p10k_target" 2>/dev/null || sudo chown coder:coder "$p10k_target" || true; fi
-        else
-          echo "zsh warning: no se pudo escribir $p10k_target"
-        fi
-      done
-    fi
-
-    install_meslo_fonts() {
-      target_home="$1"
-      [ -n "$target_home" ] || return 0
-      [ -d "$target_home" ] || return 0
-      fonts_dir="$target_home/.fonts"
-      mkdir -p "$fonts_dir" 2>/dev/null || sudo mkdir -p "$fonts_dir" || true
-
-      copy_if_exists() {
-        name="$1"
-        src1="/usr/local/share/fonts/$name"
-        src2="/usr/share/fonts/$name"
-        if [ -f "$src1" ]; then
-          cp -f "$src1" "$fonts_dir/$name" 2>/dev/null || sudo cp -f "$src1" "$fonts_dir/$name" 2>/dev/null || true
-        elif [ -f "$src2" ]; then
-          cp -f "$src2" "$fonts_dir/$name" 2>/dev/null || sudo cp -f "$src2" "$fonts_dir/$name" 2>/dev/null || true
-        fi
-        chmod 644 "$fonts_dir/$name" 2>/dev/null || sudo chmod 644 "$fonts_dir/$name" 2>/dev/null || true
-      }
-
-      copy_if_exists "MesloLGS NF Regular.ttf"
-      copy_if_exists "MesloLGS NF Bold.ttf"
-      copy_if_exists "MesloLGS NF Italic.ttf"
-      copy_if_exists "MesloLGS NF Bold Italic.ttf"
-
-      if command -v fc-cache >/dev/null 2>&1; then
-        fc-cache -f "$fonts_dir" >/dev/null 2>&1 || sudo fc-cache -f "$fonts_dir" >/dev/null 2>&1 || true
-      fi
-
-      if [ "$target_home" = "/home/coder" ] && id -u coder >/dev/null 2>&1; then
-        chown -R coder:coder "$fonts_dir" 2>/dev/null || sudo chown -R coder:coder "$fonts_dir" || true
-      fi
-    }
-
-    install_meslo_fonts "$runtime_home"
-    if [ "$runtime_home" != "/home/coder" ]; then
-      install_meslo_fonts "/home/coder"
-    fi
-
     keybindings_home="/home/coder"
     if ! mkdir -p "$keybindings_home" 2>/dev/null; then
       sudo mkdir -p "$keybindings_home" || true
@@ -370,6 +302,32 @@ resource "coder_agent" "main" {
   EOT
 }
 
+resource "coder_script" "apply_shell_defaults" {
+  agent_id           = coder_agent.main.id
+  display_name       = "Apply Zsh and Fonts Defaults"
+  icon               = "/icon/folder.svg"
+  run_on_start       = true
+  start_blocks_login = false
+
+  script = <<-EOT
+    #!/bin/sh
+    set -u
+
+    home_dir="/home/coder"
+    [ -d "$home_dir" ] || exit 0
+
+    if [ -f "$home_dir/.zshrc" ]; then
+      chmod 600 "$home_dir/.zshrc" 2>/dev/null || true
+    fi
+
+    if [ -f "$home_dir/.p10k.zsh" ]; then
+      chmod 600 "$home_dir/.p10k.zsh" 2>/dev/null || true
+    fi
+
+    chown -R coder:coder "$home_dir/.zshrc" "$home_dir/.p10k.zsh" 2>/dev/null || true
+  EOT
+}
+
 # Servicios de experiencia de usuario en Coder.
 module "kasmvnc" {
   source  = "registry.coder.com/coder/kasmvnc/coder"
@@ -388,6 +346,14 @@ module "code-server" {
   folder   = "/home/coder/Projects"
   extensions = local.vscode_extensions
   order    = 1
+}
+
+module "filebrowser" {
+  count    = data.coder_workspace.me.start_count
+  source   = "registry.coder.com/coder/filebrowser/coder"
+  version  = "~> 1.1"
+  agent_id = coder_agent.main.id
+  folder   = "/home/coder"
 }
 
 # Configura identidad Git global (user.name/user.email) a partir de Coder.
@@ -425,7 +391,7 @@ resource "docker_container" "workspace" {
 
   shm_size   = 2048
   entrypoint = ["sh", "-lc"]
-  # Mantener command minimo para evitar fallos de arranque del contenedor.
+  # Command minimo para evitar fallos de arranque del contenedor.
   command = [<<-EOT
     exec ${coder_agent.main.init_script}
   EOT
@@ -455,6 +421,16 @@ resource "docker_container" "workspace" {
   volumes {
     volume_name    = docker_volume.coder_home.name
     container_path = "/home/coder"
+  }
+
+  upload {
+    file    = "/home/coder/.zshrc"
+    content = local.zshrc_default_text
+  }
+
+  upload {
+    file    = "/home/coder/.p10k.zsh"
+    content = local.p10k_default_text
   }
 
   dynamic "mounts" {

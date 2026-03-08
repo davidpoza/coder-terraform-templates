@@ -14,3 +14,5 @@ fi
 if [ -f "$ZSH/oh-my-zsh.sh" ]; then
   source "$ZSH/oh-my-zsh.sh"
 fi
+
+[[ -f ~/.p10k.zsh ]] && source ~/.p10k.zsh
