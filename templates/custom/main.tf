@@ -275,6 +275,27 @@ resource "coder_agent" "main" {
       rm -f "$eclipse_epf_src" || true
     fi
 
+    codex_home="/home/coder/.codex"
+    codex_config="$codex_home/config.toml"
+    codex_chrome_mcp='[mcp_servers.chrome-devtools]
+command = "npx"
+args = [
+  "-y",
+  "chrome-devtools-mcp@latest",
+  "--headless=true",
+  "--isolated=true"
+]'
+    mkdir -p "$codex_home" 2>/dev/null || sudo mkdir -p "$codex_home" || true
+    if [ ! -f "$codex_config" ]; then
+      printf '%s\n' "$codex_chrome_mcp" > "$codex_config"
+    elif ! grep -q '^\[mcp_servers\.chrome-devtools\]' "$codex_config" 2>/dev/null; then
+      printf '\n%s\n' "$codex_chrome_mcp" >> "$codex_config"
+    fi
+    chmod 600 "$codex_config" 2>/dev/null || sudo chmod 600 "$codex_config" || true
+    if id -u coder >/dev/null 2>&1; then
+      chown -R coder:coder "$codex_home" 2>/dev/null || sudo chown -R coder:coder "$codex_home" || true
+    fi
+
     if [ "${tostring(var.enable_host_docker)}" = "true" ]; then
       socket_path="${var.host_docker_socket_path}"
       runtime_user="$(id -un 2>/dev/null || echo "")"
