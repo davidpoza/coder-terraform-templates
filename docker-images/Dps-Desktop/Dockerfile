@@ -117,6 +117,7 @@ RUN dpkg --add-architecture i386 && \
       libstdc++6:i386 \
       libgcc-s1:i386 \
       zlib1g:i386 \
+      firefox \
       google-chrome-stable \
       code \
       nodejs \
