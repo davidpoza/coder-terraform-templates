@@ -47,7 +47,8 @@ locals {
     if trimspace(ext) != "" && !startswith(trimspace(ext), "#")
   ]
   container_groups = compact(concat(
-    var.enable_dri ? ["video", "render", var.dri_render_gid] : [],
+    # Docker acepta GIDs numéricos aunque no exista un nombre de grupo resoluble.
+    var.enable_dri && trimspace(var.dri_render_gid) != "" ? [trimspace(var.dri_render_gid)] : [],
     local.enable_host_docker && local.host_docker_gid != "" ? [local.host_docker_gid] : []
   ))
 }
