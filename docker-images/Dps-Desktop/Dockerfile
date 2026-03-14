@@ -195,7 +195,12 @@ StartupNotify=true
 EOF
 
 # CLIs globales de IA
-RUN npm install -g @openai/codex @google/gemini-cli @anthropic-ai/claude-code @github/copilot opencode-ai eas-cli @angular/cli
+RUN npm install -g @fission-ai/openspec@latest @openai/codex @google/gemini-cli @anthropic-ai/claude-code @github/copilot opencode-ai eas-cli @angular/cli
+
+# Spec Kit: instalar la CLI `specify` desde el repositorio oficial
+RUN python3 -m pip install --break-system-packages --no-cache-dir uv && \
+    uv tool install --python python3 --tool-dir /usr/local/bin \
+      --from git+https://github.com/github/spec-kit.git specify-cli
 
 # Permitir uso de Docker al usuario no root, instalar nvm y preparar SSH para GitHub
 RUN groupadd -f docker && \
