@@ -26,6 +26,24 @@ data "coder_parameter" "github_upload_public_key" {
   mutable      = true
 }
 
+data "coder_parameter" "git_repo_urls" {
+  name         = "git_repo_urls"
+  display_name = "[Code] Git repos"
+  description  = "URLs de repos a clonar en ~/Projects. Acepta una por linea o separadas por comas. Solo se clonan si la carpeta destino no existe."
+  type         = "string"
+  default      = <<-EOT
+    git@github.com:davidpoza/dps-tracker.git
+    git@github.com:davidpoza/dog-booking-planner.git
+    git@github.com:davidpoza/dps-stock-web.git
+    git@github.com:davidpoza/dps-wiki-llm.git
+    git@github.com:davidpoza/mcp-doc.git
+    git@github.com:davidpoza/dps-stock-backend.git
+    git@github.com:davidpoza/ddc-moises-java-priorities-comparator.git
+    git@github.com:davidpoza/dps-stock-app.git
+  EOT
+  mutable      = true
+}
+
 # Defaults y valores normalizados usados por agente y contenedor.
 locals {
   host_mount_path              = trimspace(var.host_mount_path)
@@ -42,6 +60,7 @@ locals {
   p10k_default_text = file("${path.module}/defaults/p10k")
   zshrc_default_text = file("${path.module}/defaults/zshrc")
   vscode_extensions_default_text = file("${path.module}/defaults/extensions.txt")
+  git_repo_urls_base64 = data.coder_parameter.git_repo_urls.value != "" ? base64encode(data.coder_parameter.git_repo_urls.value) : ""
   vscode_extensions = [
     for ext in split("\n", replace(local.vscode_extensions_default_text, "\r\n", "\n")) : trimspace(ext)
     if trimspace(ext) != "" && !startswith(trimspace(ext), "#")
@@ -215,6 +234,63 @@ resource "coder_agent" "main" {
     ensure_oh_my_zsh "$runtime_home"
     if [ "$runtime_home" != "/home/coder" ]; then
       ensure_oh_my_zsh "/home/coder"
+    fi
+
+    projects_dir="/home/coder/Projects"
+    if ! mkdir -p "$projects_dir" 2>/dev/null; then
+      sudo mkdir -p "$projects_dir" || true
+    fi
+    if id -u coder >/dev/null 2>&1; then
+      chown coder:coder "$projects_dir" 2>/dev/null || sudo chown coder:coder "$projects_dir" || true
+    fi
+
+    if [ -n "${local.git_repo_urls_base64}" ]; then
+      repo_urls_file="/tmp/coder-git-repos.txt"
+      printf '%s' '${local.git_repo_urls_base64}' | base64 -d | tr ',' '\n' > "$repo_urls_file"
+
+      clone_repo_into_projects() {
+        repo_url="$1"
+        repo_name="$(basename "$repo_url")"
+        repo_name="$${repo_name%.git}"
+        target_dir="$projects_dir/$repo_name"
+
+        if [ -d "$target_dir/.git" ]; then
+          return 0
+        fi
+
+        if [ -e "$target_dir" ]; then
+          echo "Git warning: ya existe $target_dir; se omite clone de $repo_url"
+          return 0
+        fi
+
+        if ! command -v git >/dev/null 2>&1; then
+          echo "Git warning: git no esta instalado; no se puede clonar $repo_url"
+          return 0
+        fi
+
+        if [ "$(id -un 2>/dev/null || true)" = "coder" ]; then
+          HOME="/home/coder" git clone "$repo_url" "$target_dir" || echo "Git warning: fallo al clonar $repo_url"
+        elif id -u coder >/dev/null 2>&1 && command -v sudo >/dev/null 2>&1; then
+          sudo -u coder -H env HOME=/home/coder git clone "$repo_url" "$target_dir" || echo "Git warning: fallo al clonar $repo_url"
+        else
+          HOME="/home/coder" git clone "$repo_url" "$target_dir" || echo "Git warning: fallo al clonar $repo_url"
+        fi
+
+        if [ -d "$target_dir" ] && id -u coder >/dev/null 2>&1; then
+          chown -R coder:coder "$target_dir" 2>/dev/null || sudo chown -R coder:coder "$target_dir" || true
+        fi
+      }
+
+      while IFS= read -r repo_url; do
+        repo_url="$(printf '%s' "$repo_url" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+        [ -n "$repo_url" ] || continue
+        case "$repo_url" in
+          \#*) continue ;;
+        esac
+        clone_repo_into_projects "$repo_url"
+      done < "$repo_urls_file"
+
+      rm -f "$repo_urls_file" || true
     fi
 
     keybindings_home="/home/coder"
