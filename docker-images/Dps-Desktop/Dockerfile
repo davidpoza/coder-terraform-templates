@@ -150,7 +150,6 @@ RUN mkdir -p /opt/android-sdk/cmdline-tools && \
       "platform-tools" \
       "build-tools;35.0.0" \
       "build-tools;34.0.0" \
-      "platforms;android-37" \
       "platforms;android-35" \
       "platforms;android-34" \
       "cmdline-tools;latest" \
