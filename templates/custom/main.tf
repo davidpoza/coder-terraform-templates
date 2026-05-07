@@ -452,6 +452,7 @@ module "filebrowser" {
   source   = "registry.coder.com/coder/filebrowser/coder"
   version  = "~> 1.1"
   agent_id = coder_agent.main.id
+  agent_name = "main"
   folder   = "/home/coder"
   subdomain           = false
 }
