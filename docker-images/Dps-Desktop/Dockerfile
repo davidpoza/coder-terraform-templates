@@ -148,6 +148,7 @@ RUN mkdir -p /opt/android-sdk/cmdline-tools && \
       "platform-tools" \
       "build-tools;35.0.0" \
       "build-tools;34.0.0" \
+      "platforms;android-37" \
       "platforms;android-35" \
       "platforms;android-34" \
       "cmdline-tools;latest" \
@@ -173,6 +174,27 @@ RUN mkdir -p /usr/local/share/fonts && \
     curl -fsSL "https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Italic.ttf" -o "/usr/local/share/fonts/MesloLGS NF Italic.ttf" && \
     curl -fsSL "https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Bold%20Italic.ttf" -o "/usr/local/share/fonts/MesloLGS NF Bold Italic.ttf" && \
     fc-cache -f /usr/local/share/fonts || true
+
+# Android Studio
+ARG ANDROID_STUDIO_VERSION=2025.2.3.9
+RUN curl -fsSL "https://redirector.gvt1.com/edgedl/android/studio/ide-zips/${ANDROID_STUDIO_VERSION}/android-studio-${ANDROID_STUDIO_VERSION}-linux.tar.gz" -o /tmp/android-studio.tar.gz && \
+    tar -xzf /tmp/android-studio.tar.gz -C /opt && \
+    rm -f /tmp/android-studio.tar.gz && \
+    chown -R "$USER":"$USER" /opt/android-studio && \
+    ln -sf /opt/android-studio/bin/studio /usr/local/bin/android-studio && \
+    ln -sf /opt/android-studio/bin/studio /usr/local/bin/studio
+
+# Launcher de Android Studio para menú de escritorio
+RUN cat > /usr/share/applications/android-studio.desktop << 'EOF'
+[Desktop Entry]
+Name=Android Studio
+Comment=Android IDE
+Exec=/opt/android-studio/bin/studio
+Icon=/opt/android-studio/bin/studio.png
+Terminal=false
+Type=Application
+Categories=Development;IDE;
+EOF
 
 # Instalar Eclipse IDE desde tarball oficial (script dedicado)
 COPY scripts/install-eclipse.sh /usr/local/bin/install-eclipse.sh
