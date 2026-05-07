@@ -142,6 +142,8 @@ RUN mkdir -p /opt/android-sdk/cmdline-tools && \
     unzip -q /tmp/cmdline-tools.zip -d /opt/android-sdk/cmdline-tools && \
     mv /opt/android-sdk/cmdline-tools/cmdline-tools /opt/android-sdk/cmdline-tools/latest && \
     rm -f /tmp/cmdline-tools.zip && \
+    mkdir -p /home/coder/.android && \
+    touch /home/coder/.android/repositories.cfg && \
     yes | /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses >/dev/null || true && \
     /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager --update && \
     /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager \
@@ -154,9 +156,7 @@ RUN mkdir -p /opt/android-sdk/cmdline-tools && \
       "cmdline-tools;latest" \
       "ndk;27.0.12077973" \
       "cmake;3.22.1" && \
-    install -d -o "$USER" -g "$USER" /home/"$USER"/.android && \
-    touch /home/"$USER"/.android/repositories.cfg && \
-    chown -R "$USER":"$USER" /opt/android-sdk /home/"$USER"/.android
+    chown -R coder:coder /opt/android-sdk /home/coder/.android
 
 # Compatibilidad con rutas esperadas por Kasm/VirtualGL
 RUN mkdir -p /opt/VirtualGL/bin && \
