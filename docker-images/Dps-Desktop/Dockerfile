@@ -136,7 +136,7 @@ ENV ANDROID_HOME=/opt/android-sdk \
     ANDROID_SDK_ROOT=/opt/android-sdk \
     ANDROID_USER_HOME=/home/coder/.android \
     JAVA_HOME=/usr/lib/jvm/temurin-21-jdk-amd64 \
-    PATH=$PATH:/opt/android-sdk/platform-tools:/opt/android-sdk/cmdline-tools/latest/bin:/usr/lib/jvm/temurin-21-jdk-amd64/bin
+    PATH=$PATH:/opt/android-sdk/platform-tools:/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/emulator:/usr/lib/jvm/temurin-21-jdk-amd64/bin
 
 RUN mkdir -p /opt/android-sdk/cmdline-tools && \
     curl -fsSL "https://dl.google.com/android/repository/commandlinetools-linux-${ANDROID_SDK_VERSION}_latest.zip" -o /tmp/cmdline-tools.zip && \
@@ -149,10 +149,14 @@ RUN mkdir -p /opt/android-sdk/cmdline-tools && \
     /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager --update && \
     /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager \
       "platform-tools" \
+      "emulator" \
+      "build-tools;36.0.0" \
       "build-tools;35.0.0" \
       "build-tools;34.0.0" \
+      "platforms;android-36" \
       "platforms;android-35" \
       "platforms;android-34" \
+      "system-images;android-36;google_apis_playstore;x86_64" \
       "cmdline-tools;latest" \
       "ndk;27.0.12077973" \
       "cmake;3.22.1" && \
