@@ -30,6 +30,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
       libvulkan1 \
       vainfo \
       vulkan-tools \
+      qemu-kvm \
       dbus-x11 \
       libdatetime-perl \
       openssl \
@@ -160,6 +161,9 @@ RUN mkdir -p /opt/android-sdk/cmdline-tools && \
 # Compatibilidad con rutas esperadas por Kasm/VirtualGL
 RUN mkdir -p /opt/VirtualGL/bin && \
     if command -v vglrun >/dev/null 2>&1; then ln -sfn "$(command -v vglrun)" /opt/VirtualGL/bin/vglrun || true; fi
+
+# Preparar permisos base para aceleracion del emulador Android.
+RUN usermod -aG kvm "$USER" || true
 
 # Compatibilidad de comandos: exponer "neofetch" usando fastfetch en Ubuntu 24
 RUN if command -v fastfetch >/dev/null 2>&1 && ! command -v neofetch >/dev/null 2>&1; then \

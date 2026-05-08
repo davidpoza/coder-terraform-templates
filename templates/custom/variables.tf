@@ -10,6 +10,12 @@ variable "enable_amd_kfd" {
   default     = true
 }
 
+variable "enable_kvm" {
+  type        = bool
+  description = "Mapea /dev/kvm para aceleracion por hardware del emulador Android."
+  default     = true
+}
+
 variable "dri_node" {
   type        = string
   description = "Nodo DRI de render a usar en el contenedor (ej. /dev/dri/renderD128)."

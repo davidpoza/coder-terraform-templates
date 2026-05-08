@@ -29,18 +29,9 @@ data "coder_parameter" "github_upload_public_key" {
 data "coder_parameter" "git_repo_urls" {
   name         = "git_repo_urls"
   display_name = "[Code] Git repos"
-  description  = "URLs de repos a clonar en ~/Projects. Acepta una por linea o separadas por comas. Solo se clonan si la carpeta destino no existe."
+  description  = "URLs de repos a clonar en ~/Projects, separadas por comas o una por linea. Solo se clonan si la carpeta destino no existe."
   type         = "string"
-  default      = <<-EOT
-    git@github.com:davidpoza/dps-tracker.git
-    git@github.com:davidpoza/dog-booking-planner.git
-    git@github.com:davidpoza/dps-stock-web.git
-    git@github.com:davidpoza/dps-wiki-llm.git
-    git@github.com:davidpoza/mcp-doc.git
-    git@github.com:davidpoza/dps-stock-backend.git
-    git@github.com:davidpoza/ddc-moises-java-priorities-comparator.git
-    git@github.com:davidpoza/dps-stock-app.git
-  EOT
+  default      = "git@github.com:davidpoza/dps-tracker.git, git@github.com:davidpoza/dog-booking-planner.git, git@github.com:davidpoza/dps-stock-web.git, git@github.com:davidpoza/dps-wiki-llm.git, git@github.com:davidpoza/mcp-doc.git, git@github.com:davidpoza/dps-stock-backend.git, git@github.com:davidpoza/ddc-moises-java-priorities-comparator.git, git@github.com:davidpoza/dps-stock-app.git"
   mutable      = true
 }
 
@@ -151,6 +142,31 @@ resource "coder_agent" "main" {
         echo "GPU warning: vglrun no encontrado. Instala virtualgl en la imagen base."
       fi
 
+    fi
+
+    if [ "${tostring(var.enable_kvm)}" = "true" ] && [ -e "/dev/kvm" ]; then
+      runtime_uid=$(id -u)
+      runtime_user=$(id -un 2>/dev/null || echo "")
+      kvm_gid=$(stat -c '%g' /dev/kvm 2>/dev/null || echo "")
+
+      if [ -n "$kvm_gid" ]; then
+        kvm_group=$(getent group "$kvm_gid" | cut -d: -f1)
+        if [ -z "$kvm_group" ]; then
+          kvm_group="hostkvm_$kvm_gid"
+          if ! getent group "$kvm_group" >/dev/null; then
+            sudo groupadd -g "$kvm_gid" "$kvm_group" || true
+          fi
+        fi
+        if [ -n "$runtime_user" ] && getent passwd "$runtime_user" >/dev/null 2>&1; then
+          sudo usermod -aG "$kvm_group" "$runtime_user" || true
+        fi
+      fi
+
+      if command -v setfacl >/dev/null 2>&1; then
+        sudo setfacl -m "u:$runtime_uid:rw" /dev/kvm 2>/dev/null || true
+      fi
+
+      sudo chmod a+rw /dev/kvm 2>/dev/null || true
     fi
 
     ssh_home="/home/coder"
@@ -508,10 +524,13 @@ resource "docker_container" "workspace" {
   ], local.enable_host_docker ? ["DOCKER_HOST=unix:///var/run/docker.sock"] : [])
 
   dynamic "devices" {
-    for_each = var.enable_dri ? compact([
-      "/dev/dri",
-      var.enable_amd_kfd ? "/dev/kfd" : "",
-    ]) : []
+    for_each = compact(concat(
+      var.enable_dri ? [
+        "/dev/dri",
+        var.enable_amd_kfd ? "/dev/kfd" : "",
+      ] : [],
+      var.enable_kvm ? ["/dev/kvm"] : []
+    ))
     content {
       host_path      = devices.value
       container_path = devices.value
