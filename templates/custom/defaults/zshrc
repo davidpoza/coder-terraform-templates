@@ -15,4 +15,6 @@ if [ -f "$ZSH/oh-my-zsh.sh" ]; then
   source "$ZSH/oh-my-zsh.sh"
 fi
 
+alias npm='pnpm'
+
 [[ -f ~/.p10k.zsh ]] && source ~/.p10k.zsh

@@ -223,8 +223,8 @@ Categories=Development;IDE;Java;
 StartupNotify=true
 EOF
 
-# CLIs globales de IA
-RUN npm install -g @fission-ai/openspec@latest @openai/codex @google/gemini-cli @anthropic-ai/claude-code @github/copilot opencode-ai eas-cli @angular/cli
+# CLIs globales de IA y toolchain JS
+RUN npm install -g pnpm @fission-ai/openspec@latest @openai/codex @google/gemini-cli @anthropic-ai/claude-code @github/copilot opencode-ai eas-cli @angular/cli
 
 # Spec Kit: instalar la CLI `specify` desde el repositorio oficial
 ENV UV_TOOL_BIN_DIR=/usr/local/bin
