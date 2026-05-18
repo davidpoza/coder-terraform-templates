@@ -108,6 +108,7 @@ RUN dpkg --add-architecture i386 && \
       rclone \
       restic \
       sshfs \
+      tmux \
       tree \
       unzip \
       wget \
@@ -224,7 +225,7 @@ StartupNotify=true
 EOF
 
 # CLIs globales de IA y toolchain JS
-RUN npm install -g pnpm @fission-ai/openspec@latest @openai/codex @google/gemini-cli @anthropic-ai/claude-code @github/copilot opencode-ai eas-cli @angular/cli
+RUN npm install -g pnpm @fission-ai/openspec@latest @openai/codex @google/gemini-cli @anthropic-ai/claude-code @github/copilot opencode-ai @openrig/cli eas-cli @angular/cli
 
 # Spec Kit: instalar la CLI `specify` desde el repositorio oficial
 ENV UV_TOOL_BIN_DIR=/usr/local/bin
@@ -241,14 +242,20 @@ RUN groupadd -f docker && \
     usermod -aG video,render "$USER" && \
     usermod -aG "${HOST_RENDER_GID}" "$USER" || true && \
     mkdir -p "/home/$USER/.nvm" && \
+    mkdir -p "/home/$USER/.local/share/pnpm" && \
     chown -R "$USER:$USER" "/home/$USER/.nvm" && \
+    chown -R "$USER:$USER" "/home/$USER/.local" && \
     curl -fsSL "https://raw.githubusercontent.com/nvm-sh/nvm/${NVM_VERSION}/install.sh" -o /tmp/install-nvm.sh && \
     su - "$USER" -c "bash /tmp/install-nvm.sh" && \
     rm -f /tmp/install-nvm.sh && \
     grep -qxF 'export NVM_DIR="$HOME/.nvm"' "/home/$USER/.bashrc" || echo 'export NVM_DIR="$HOME/.nvm"' >> "/home/$USER/.bashrc" && \
     grep -qxF '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' "/home/$USER/.bashrc" || echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' >> "/home/$USER/.bashrc" && \
+    grep -qxF 'export PNPM_HOME="$HOME/.local/share/pnpm"' "/home/$USER/.bashrc" || echo 'export PNPM_HOME="$HOME/.local/share/pnpm"' >> "/home/$USER/.bashrc" && \
+    grep -qxF 'case ":$PATH:" in *":$PNPM_HOME:"*) ;; *) export PATH="$PNPM_HOME:$PATH" ;; esac' "/home/$USER/.bashrc" || echo 'case ":$PATH:" in *":$PNPM_HOME:"*) ;; *) export PATH="$PNPM_HOME:$PATH" ;; esac' >> "/home/$USER/.bashrc" && \
     grep -qxF 'export NVM_DIR="$HOME/.nvm"' "/home/$USER/.zshrc" || echo 'export NVM_DIR="$HOME/.nvm"' >> "/home/$USER/.zshrc" && \
     grep -qxF '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' "/home/$USER/.zshrc" || echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' >> "/home/$USER/.zshrc" && \
+    grep -qxF 'export PNPM_HOME="$HOME/.local/share/pnpm"' "/home/$USER/.zshrc" || echo 'export PNPM_HOME="$HOME/.local/share/pnpm"' >> "/home/$USER/.zshrc" && \
+    grep -qxF 'case ":$PATH:" in *":$PNPM_HOME:"*) ;; *) export PATH="$PNPM_HOME:$PATH" ;; esac' "/home/$USER/.zshrc" || echo 'case ":$PATH:" in *":$PNPM_HOME:"*) ;; *) export PATH="$PNPM_HOME:$PATH" ;; esac' >> "/home/$USER/.zshrc" && \
     mkdir -p "/home/$USER/.ssh" && \
     chown -R "$USER:$USER" "/home/$USER/.ssh" && \
     chmod 700 "/home/$USER/.ssh" && \

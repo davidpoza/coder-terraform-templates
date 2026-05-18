@@ -1,5 +1,10 @@
 # Path de Oh My Zsh.
 export ZSH="$HOME/.oh-my-zsh"
+export PNPM_HOME="$HOME/.local/share/pnpm"
+case ":$PATH:" in
+  *":$PNPM_HOME:"*) ;;
+  *) export PATH="$PNPM_HOME:$PATH" ;;
+esac
 
 # Tema por defecto.
 ZSH_THEME="powerlevel10k/powerlevel10k"
