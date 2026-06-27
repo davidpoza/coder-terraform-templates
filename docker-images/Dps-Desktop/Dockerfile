@@ -225,7 +225,34 @@ StartupNotify=true
 EOF
 
 # CLIs globales de IA y toolchain JS
-RUN npm install -g pnpm @fission-ai/openspec@latest @openai/codex @google/gemini-cli @anthropic-ai/claude-code @github/copilot opencode-ai @openrig/cli eas-cli @angular/cli
+RUN npm install -g pnpm @fission-ai/openspec@latest @openai/codex @google/gemini-cli @anthropic-ai/claude-code @github/copilot opencode-ai @openrig/cli eas-cli @angular/cli happy chrome-devtools-mcp@latest
+
+# Configurar Chrome DevTools MCP para Codex y Claude Code
+RUN mkdir -p "/home/$USER/.codex" "/home/$USER/.claude" && \
+    printf '%s\n' \
+      '[mcp_servers.chrome-devtools]' \
+      'command = "chrome-devtools-mcp"' \
+      'args = [' \
+      '  "--headless=true",' \
+      '  "--isolated=true"' \
+      ']' \
+      > "/home/$USER/.codex/config.toml" && \
+    printf '%s\n' \
+      '{' \
+      '  "mcpServers": {' \
+      '    "chrome-devtools": {' \
+      '      "type": "stdio",' \
+      '      "command": "chrome-devtools-mcp",' \
+      '      "args": [' \
+      '        "--headless=true",' \
+      '        "--isolated=true"' \
+      '      ]' \
+      '    }' \
+      '  }' \
+      '}' \
+      > "/home/$USER/.claude.json" && \
+    chmod 600 "/home/$USER/.codex/config.toml" "/home/$USER/.claude.json" && \
+    chown -R "$USER:$USER" "/home/$USER/.codex" "/home/$USER/.claude" "/home/$USER/.claude.json"
 
 # Spec Kit: instalar la CLI `specify` desde el repositorio oficial
 ENV UV_TOOL_BIN_DIR=/usr/local/bin

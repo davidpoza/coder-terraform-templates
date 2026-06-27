@@ -31,7 +31,7 @@ data "coder_parameter" "git_repo_urls" {
   display_name = "[Code] Git repos"
   description  = "URLs de repos a clonar en ~/Projects, separadas por comas o una por linea. Solo se clonan si la carpeta destino no existe."
   type         = "string"
-  default      = "git@github.com:davidpoza/dps-tracker.git, git@github.com:davidpoza/dog-booking-planner.git, git@github.com:davidpoza/dps-stock-web.git, git@github.com:davidpoza/dps-wiki-llm.git, git@github.com:davidpoza/mcp-doc.git, git@github.com:davidpoza/dps-stock-backend.git, git@github.com:davidpoza/ddc-moises-java-priorities-comparator.git, git@github.com:davidpoza/dps-stock-app.git"
+  default      = "git@github.com:davidpoza/dps-tracker.git, git@github.com:davidpoza/dog-booking-planner.git, git@github.com:davidpoza/dps-stock-web.git, git@github.com:davidpoza/dps-wiki-llm.git, git@github.com:davidpoza/mcp-doc.git, git@github.com:davidpoza/dps-stock-backend.git, git@github.com:davidpoza/ddc-moises-java-priorities-comparator.git, git@github.com:davidpoza/dps-stock-app.git, git@github.com:davidpoza/wheimo.git"
   mutable      = true
 }
 
@@ -371,10 +371,8 @@ resource "coder_agent" "main" {
     codex_home="/home/coder/.codex"
     codex_config="$codex_home/config.toml"
     codex_chrome_mcp='[mcp_servers.chrome-devtools]
-command = "npx"
+command = "chrome-devtools-mcp"
 args = [
-  "-y",
-  "chrome-devtools-mcp@latest",
   "--headless=true",
   "--isolated=true"
 ]'
@@ -387,6 +385,31 @@ args = [
     chmod 600 "$codex_config" 2>/dev/null || sudo chmod 600 "$codex_config" || true
     if id -u coder >/dev/null 2>&1; then
       chown -R coder:coder "$codex_home" 2>/dev/null || sudo chown -R coder:coder "$codex_home" || true
+    fi
+
+    claude_home="/home/coder/.claude"
+    claude_config="/home/coder/.claude.json"
+    claude_chrome_mcp='{
+  "type": "stdio",
+  "command": "chrome-devtools-mcp",
+  "args": [
+    "--headless=true",
+    "--isolated=true"
+  ]
+}'
+    mkdir -p "$claude_home" 2>/dev/null || sudo mkdir -p "$claude_home" || true
+    if [ ! -f "$claude_config" ]; then
+      printf '%s\n' '{"mcpServers":{"chrome-devtools":'"$claude_chrome_mcp"'}}' > "$claude_config"
+    elif command -v jq >/dev/null 2>&1 && ! jq -e '.mcpServers."chrome-devtools"' "$claude_config" >/dev/null 2>&1; then
+      tmp_claude_config="$(mktemp)"
+      if jq --argjson server "$claude_chrome_mcp" '.mcpServers = (.mcpServers // {}) | .mcpServers."chrome-devtools" = $server' "$claude_config" > "$tmp_claude_config"; then
+        cp "$tmp_claude_config" "$claude_config" 2>/dev/null || sudo cp "$tmp_claude_config" "$claude_config" || true
+      fi
+      rm -f "$tmp_claude_config"
+    fi
+    chmod 600 "$claude_config" 2>/dev/null || sudo chmod 600 "$claude_config" || true
+    if id -u coder >/dev/null 2>&1; then
+      chown -R coder:coder "$claude_home" "$claude_config" 2>/dev/null || sudo chown -R coder:coder "$claude_home" "$claude_config" || true
     fi
 
     if [ "${tostring(var.enable_host_docker)}" = "true" ]; then
