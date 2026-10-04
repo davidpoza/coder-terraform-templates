@@ -1,4 +1,4 @@
-FROM codercom/enterprise-minimal:latest
+FROM codercom/enterprise-minimal:ubuntu-noble
 
 USER root
 ARG USER=coder
