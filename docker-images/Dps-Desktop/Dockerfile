@@ -18,7 +18,6 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
       openssh-client \
       software-properties-common \
       mesa-utils \
-      mesa-utils-extra \
       libglx-mesa0 \
       libgl1-mesa-dri \
       libgl1 \
@@ -30,7 +29,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
       libvulkan1 \
       vainfo \
       vulkan-tools \
-      qemu-kvm \
+      qemu-system-x86 \
       dbus-x11 \
       libdatetime-perl \
       openssl \
